@@ -1,0 +1,13 @@
+# Target labels
+ bootloader
+# Source files and their labels
+/home/marcoscapistrano/projects/ausyx/qm-test/fmw-torrador-qm-v3/build/CMakeFiles/bootloader
+/home/marcoscapistrano/projects/ausyx/qm-test/fmw-torrador-qm-v3/build/CMakeFiles/bootloader.rule
+/home/marcoscapistrano/projects/ausyx/qm-test/fmw-torrador-qm-v3/build/CMakeFiles/bootloader-complete.rule
+/home/marcoscapistrano/projects/ausyx/qm-test/fmw-torrador-qm-v3/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+/home/marcoscapistrano/projects/ausyx/qm-test/fmw-torrador-qm-v3/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+/home/marcoscapistrano/projects/ausyx/qm-test/fmw-torrador-qm-v3/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+/home/marcoscapistrano/projects/ausyx/qm-test/fmw-torrador-qm-v3/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+/home/marcoscapistrano/projects/ausyx/qm-test/fmw-torrador-qm-v3/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+/home/marcoscapistrano/projects/ausyx/qm-test/fmw-torrador-qm-v3/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+/home/marcoscapistrano/projects/ausyx/qm-test/fmw-torrador-qm-v3/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule

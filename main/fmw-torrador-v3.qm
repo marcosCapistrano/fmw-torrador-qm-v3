@@ -1,0 +1,3099 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<model version="5.2.2" links="0">
+ <framework name="qpc"/>
+ <package name="AOs" stereotype="0x02">
+  <class name="Perif" superclass="qpc::QActive">
+   <attribute name="sensorTimeEvt" type="QTimeEvt" visibility="0x00" properties="0x00"/>
+   <attribute name="realCil" type="int" visibility="0x00" properties="0x00"/>
+   <attribute name="wantedCil" type="int" visibility="0x00" properties="0x00"/>
+   <attribute name="pwmTimeEvt" type="QTimeEvt" visibility="0x00" properties="0x00"/>
+   <statechart properties="0x00">
+    <initial target="../2">
+     <action>me-&gt;realCil = 0;
+cilindro_set_duty(0);</action>
+     <initial_glyph conn="6,5,5,0,17,12">
+      <action box="0,-2,10,2"/>
+     </initial_glyph>
+    </initial>
+    <state name="sensoring">
+     <entry>ESP_LOGI(TAG, &quot;[SENSORING][ENTRY]&quot;);
+
+QTimeEvt_armX(&amp;me-&gt;sensorTimeEvt, SENSOR_INTERVAL, 0U);</entry>
+     <exit>ESP_LOGI(TAG, &quot;[SENSORING][EXIT]&quot;);</exit>
+     <tran trig="SENSOR_TIMEOUT">
+      <action>int temp_ar = sample_sensor_ar();
+int gas = sample_sensor_gas();
+int temp_grao = sample_sensor_grao();
+
+ESP_LOGE(TAG, &quot;gas here: %d&quot;, gas);
+
+if(temp_grao &gt; 0) {
+SensorUpdateEvt *sde_gr;
+sde_gr = Q_NEW(SensorUpdateEvt, SENSOR_UPDATE_SIG);
+sde_gr-&gt;type = SENSOR_GRAO;
+sde_gr-&gt;value = temp_grao;
+QACTIVE_POST(AO_DataBroker, &amp;sde_gr-&gt;super, me);
+}
+
+if(temp_ar &gt; 0) { 
+SensorUpdateEvt *sde_ar;
+sde_ar = Q_NEW(SensorUpdateEvt, SENSOR_UPDATE_SIG);
+sde_ar-&gt;type = SENSOR_AR;
+sde_ar-&gt;value = temp_ar;
+QACTIVE_POST(AO_DataBroker, &amp;sde_ar-&gt;super, me);
+}
+
+if(gas &gt; 0) {
+SensorGasUpdateEvt *sgue = Q_NEW(SensorGasUpdateEvt, SENSOR_GAS_UPDATE_SIG);
+sgue-&gt;value = gas;
+QACTIVE_POST(AO_DataBroker, &amp;sgue-&gt;super, me);
+}
+
+QTimeEvt_disarm(&amp;me-&gt;sensorTimeEvt);
+QTimeEvt_armX(&amp;me-&gt;sensorTimeEvt, SENSOR_INTERVAL, 0U);</action>
+      <tran_glyph conn="50,39,3,-1,17">
+       <action box="0,-2,16,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="PWM_TIMEOUT">
+      <action>if(abs(me-&gt;wantedCil - me-&gt;realCil) &gt; 5) {
+    if(me-&gt;wantedCil &gt; me-&gt;realCil) {
+        int newCil = me-&gt;realCil + 5;
+        cilindro_set_duty(newCil);
+        me-&gt;realCil = newCil;
+        QTimeEvt_rearm(&amp;me-&gt;pwmTimeEvt, PWM_CHECK_INTERVAL);
+    } else {
+        int newCil = me-&gt;realCil - 5;
+        cilindro_set_duty(newCil);
+        me-&gt;realCil = newCil;
+        QTimeEvt_rearm(&amp;me-&gt;pwmTimeEvt, PWM_CHECK_INTERVAL);
+    }
+} else if(me-&gt;realCil != me-&gt;wantedCil) {
+    cilindro_set_duty(me-&gt;wantedCil);
+    me-&gt;realCil = me-&gt;wantedCil;
+}</action>
+      <tran_glyph conn="50,42,3,-1,17">
+       <action box="0,-2,17,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="UPDATE_CONTROL">
+      <action>UpdateControlEvt *evt = Q_EVT_CAST(UpdateControlEvt);
+ControlType type = evt-&gt;control;
+const int value = evt-&gt;value;
+
+ESP_LOGD(TAG, &quot;Received command: %d - value: %d&quot;, type, value);
+
+if(type == POTENCIA) {
+    potencia_set_duty(value);
+} else if(type == CILINDRO) {
+    me-&gt;wantedCil = value;
+    QTimeEvt_rearm(&amp;me-&gt;pwmTimeEvt, PWM_CHECK_INTERVAL);
+} else if(type == TURBINA) {
+    turbina_set_duty(value);
+}
+
+ControlDataEvt *contPot;
+contPot = Q_NEW(ControlDataEvt, CONTROL_DATA_SIG);
+contPot-&gt;control = type;
+contPot-&gt;payload = (void *)value;
+QACTIVE_POST(AO_DataBroker, &amp;contPot-&gt;super, me);
+</action>
+      <tran_glyph conn="50,36,3,-1,17">
+       <action box="0,-2,18,2"/>
+      </tran_glyph>
+     </tran>
+     <state name="pre_heating">
+      <entry>ESP_LOGD(TAG, &quot;[SENSORING][PRE_HEAT][ENTRY]&quot;);</entry>
+      <exit>ESP_LOGI(TAG, &quot;[SENSORING][PRE_HEAT][EXIT]&quot;);</exit>
+      <tran trig="NOTIFY_NEXT_STAGE" target="../../4">
+       <tran_glyph conn="70,30,1,3,3">
+        <action box="-5,-6,20,2"/>
+       </tran_glyph>
+      </tran>
+      <state_glyph node="57,27,13,6">
+       <entry box="1,2,6,2"/>
+       <exit box="1,4,6,2"/>
+      </state_glyph>
+     </state>
+     <state name="roasting">
+      <entry>ESP_LOGD(TAG, &quot;[SENSORING][ROASTING][ENTRY]&quot;);</entry>
+      <exit>ESP_LOGD(TAG, &quot;[SENSORING][ROASTING][EXIT]&quot;);</exit>
+      <tran trig="NOTIFY_NEXT_STAGE" target="../../../3">
+       <tran_glyph conn="86,31,1,3,2,-3,19">
+        <action box="0,-2,19,2"/>
+       </tran_glyph>
+      </tran>
+      <state_glyph node="73,27,13,6">
+       <entry box="1,2,6,2"/>
+       <exit box="1,4,6,2"/>
+      </state_glyph>
+     </state>
+     <state name="idle">
+      <entry>ESP_LOGD(TAG, &quot;[SENSORING][IDLE][ENTRY]&quot;);</entry>
+      <exit>ESP_LOGD(TAG, &quot;[SENSORING][IDLE][EXIT]&quot;);</exit>
+      <tran trig="NOTIFY_NEXT_STAGE" target="../../3">
+       <tran_glyph conn="62,25,2,0,2">
+        <action box="0,-2,10,2"/>
+       </tran_glyph>
+      </tran>
+      <state_glyph node="57,19,13,6">
+       <entry box="1,2,6,2"/>
+       <exit box="1,4,6,2"/>
+      </state_glyph>
+     </state>
+     <state_glyph node="50,15,37,30">
+      <entry box="1,2,6,2"/>
+      <exit box="1,4,6,2"/>
+     </state_glyph>
+    </state>
+    <state name="off">
+     <entry>ESP_LOGI(TAG, &quot;[OFF][ENTRY]&quot;);
+
+const int newCil = 0;
+const int newPot = 0;
+const int newTurb = 0;
+
+if(get_resfriador_state()) {
+    resfriador_set_on(false);
+}
+
+potencia_set_duty(newPot);
+me-&gt;wantedCil = newCil;
+turbina_set_duty(newTurb);
+
+QTimeEvt_rearm(&amp;me-&gt;pwmTimeEvt, PWM_CHECK_INTERVAL);</entry>
+     <exit>ESP_LOGI(TAG, &quot;[OFF][EXIT]&quot;);</exit>
+     <tran trig="PWM_TIMEOUT">
+      <action>if(abs(me-&gt;wantedCil - me-&gt;realCil) &gt; 5) {
+    if(me-&gt;wantedCil &gt; me-&gt;realCil) {
+        int newCil = me-&gt;realCil + 5;
+        cilindro_set_duty(newCil);
+        me-&gt;realCil = newCil;
+        QTimeEvt_rearm(&amp;me-&gt;pwmTimeEvt, PWM_CHECK_INTERVAL);
+    } else {
+        int newCil = me-&gt;realCil - 5;
+        cilindro_set_duty(newCil);
+        me-&gt;realCil = newCil;
+        QTimeEvt_rearm(&amp;me-&gt;pwmTimeEvt, PWM_CHECK_INTERVAL);
+    }
+} else if(me-&gt;realCil != me-&gt;wantedCil) {
+    cilindro_set_duty(me-&gt;wantedCil);
+    me-&gt;realCil = me-&gt;wantedCil;
+}</action>
+      <tran_glyph conn="12,27,3,-1,16">
+       <action box="0,-2,16,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="NOTIFY_MODE">
+      <action>NotifyModeEvt *nme = Q_EVT_CAST(NotifyModeEvt); </action>
+      <choice target="../../../1/3">
+       <guard brief="MODE_ENTER">nme-&gt;mode == MODE_AUTO</guard>
+       <choice_glyph conn="40,28,5,3,17">
+        <action box="-5,1,16,2"/>
+       </choice_glyph>
+      </choice>
+      <choice target="../../../1/5">
+       <guard>nme-&gt;mode == MODE_MANUAL</guard>
+       <choice_glyph conn="40,28,4,3,-6,17">
+        <action box="1,0,10,2"/>
+       </choice_glyph>
+      </choice>
+      <tran_glyph conn="31,28,1,-1,9">
+       <action box="0,-4,16,2"/>
+      </tran_glyph>
+     </tran>
+     <state_glyph node="12,17,19,27">
+      <entry box="1,2,6,2"/>
+      <exit box="1,4,6,2"/>
+     </state_glyph>
+    </state>
+    <state name="cooling">
+     <entry>ESP_LOGD(TAG, &quot;[COOLING][ENTRY]&quot;);
+
+if(!get_resfriador_state()) {
+    resfriador_set_on(true);
+}</entry>
+     <exit>ESP_LOGD(TAG, &quot;[COOLING][EXIT]&quot;);
+
+if(get_resfriador_state()) {
+    resfriador_set_on(false);
+}</exit>
+     <tran trig="NOTIFY_NEXT_STAGE" target="../../4">
+      <tran_glyph conn="116,35,2,1,30,-37">
+       <action box="-21,26,20,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="UPDATE_CONTROL">
+      <action>UpdateControlEvt *evt = Q_EVT_CAST(UpdateControlEvt);
+ControlType type = evt-&gt;control;
+const int value = evt-&gt;value;
+
+ESP_LOGD(TAG, &quot;Received command: %d - value: %d&quot;, type, value);
+
+if(type == POTENCIA) {
+    potencia_set_duty(value);
+} else if(type == CILINDRO) {
+    me-&gt;wantedCil = value;
+    QTimeEvt_rearm(&amp;me-&gt;pwmTimeEvt, PWM_CHECK_INTERVAL);
+} else if(type == TURBINA) {
+    turbina_set_duty(value);
+}
+
+ControlDataEvt *contPot;
+contPot = Q_NEW(ControlDataEvt, CONTROL_DATA_SIG);
+contPot-&gt;control = type;
+contPot-&gt;payload = (void *)value;
+QACTIVE_POST(AO_DataBroker, &amp;contPot-&gt;super, me);
+</action>
+      <tran_glyph conn="107,33,3,-1,16">
+       <action box="1,-3,19,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="PWM_TIMEOUT">
+      <action>if(abs(me-&gt;wantedCil - me-&gt;realCil) &gt; 5) {
+    if(me-&gt;wantedCil &gt; me-&gt;realCil) {
+        int newCil = me-&gt;realCil + 5;
+        cilindro_set_duty(newCil);
+        me-&gt;realCil = newCil;
+        QTimeEvt_rearm(&amp;me-&gt;pwmTimeEvt, PWM_CHECK_INTERVAL);
+    } else {
+        int newCil = me-&gt;realCil - 5;
+        cilindro_set_duty(newCil);
+        me-&gt;realCil = newCil;
+        QTimeEvt_rearm(&amp;me-&gt;pwmTimeEvt, PWM_CHECK_INTERVAL);
+    }
+} else if(me-&gt;realCil != me-&gt;wantedCil) {
+    cilindro_set_duty(me-&gt;wantedCil);
+    me-&gt;realCil = me-&gt;wantedCil;
+}</action>
+      <tran_glyph conn="107,29,3,-1,15">
+       <action box="0,-2,10,2"/>
+      </tran_glyph>
+     </tran>
+     <state_glyph node="107,21,23,14">
+      <entry box="1,2,6,2"/>
+      <exit box="1,4,6,2"/>
+     </state_glyph>
+    </state>
+    <state name="summary">
+     <entry>ESP_LOGI(TAG, &quot;[SUMMARY][ENTRY]&quot;);</entry>
+     <exit>ESP_LOGI(TAG, &quot;[SUMMARY][EXIT]&quot;);</exit>
+     <tran trig="NOTIFY_NEXT_STAGE" target="../../1/3">
+      <tran_glyph conn="70,59,0,2,-24,-2,-2">
+       <action box="0,-8,21,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="NOTIFY_MODE">
+      <action>NotifyModeEvt *nme = Q_EVT_CAST(NotifyModeEvt); </action>
+      <choice target="../../../2">
+       <guard brief="MODE_EXIT">nme-&gt;mode == MODE_NONE</guard>
+       <choice_glyph conn="52,66,5,2,-32,-22">
+        <action box="-16,-4,13,3"/>
+       </choice_glyph>
+      </choice>
+      <tran_glyph conn="58,66,3,-1,-6">
+       <action box="0,-2,15,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="PWM_TIMEOUT">
+      <action>if(abs(me-&gt;wantedCil - me-&gt;realCil) &gt; 5) {
+    if(me-&gt;wantedCil &gt; me-&gt;realCil) {
+        int newCil = me-&gt;realCil + 5;
+        cilindro_set_duty(newCil);
+        me-&gt;realCil = newCil;
+        QTimeEvt_rearm(&amp;me-&gt;pwmTimeEvt, PWM_CHECK_INTERVAL);
+    } else {
+        int newCil = me-&gt;realCil - 5;
+        cilindro_set_duty(newCil);
+        me-&gt;realCil = newCil;
+        QTimeEvt_rearm(&amp;me-&gt;pwmTimeEvt, PWM_CHECK_INTERVAL);
+    }
+} else if(me-&gt;realCil != me-&gt;wantedCil) {
+    cilindro_set_duty(me-&gt;wantedCil);
+    me-&gt;realCil = me-&gt;wantedCil;
+}
+</action>
+      <tran_glyph conn="58,68,3,-1,14,1">
+       <action box="0,-2,10,2"/>
+      </tran_glyph>
+     </tran>
+     <state_glyph node="58,59,21,13">
+      <entry box="1,2,6,2"/>
+      <exit box="1,4,6,2"/>
+     </state_glyph>
+    </state>
+    <state_diagram size="143,94"/>
+   </statechart>
+  </class>
+  <class name="Ihm" superclass="qpc::QActive">
+   <attribute name="state" type="IhmState" visibility="0x00" properties="0x00"/>
+   <attribute name="stageTimerEvt" type="QTimeEvt" visibility="0x00" properties="0x00"/>
+   <attribute name="stage" type="IhmStage" visibility="0x02" properties="0x00"/>
+   <attribute name="substage" type="IhmSubstage" visibility="0x02" properties="0x00"/>
+   <operation name="setupPageManualMode" type="void" visibility="0x02" properties="0x01">
+    <code>ESP_LOGD(TAG, &quot;[IHM_SETUP_PAGE_MANUAL_MODE]&quot;);
+
+postUart_setPage(MANUAL_MODE_PICID);
+postUart_setString(NAVBAR_TEXT_VP, &quot;MODO_MANUAL&quot;, true);
+postUart_setIcon(NAVBAR_ICON_HOME_VP, 1);
+postUart_setIcon(NAVBAR_ICON_GEAR_VP, 1);
+
+postUart_setString(SENSOR_AR_TEXT_VP, &quot;0\0&quot;, false);
+postUart_setString(DELTA_AR_TEXT_VP, &quot;0\0&quot;, false);
+
+postUart_setString(SENSOR_GRAO_TEXT_VP, &quot;0\0&quot;, false);
+postUart_setString(DELTA_GRAO_TEXT_VP, &quot;0\0&quot;, false);</code>
+   </operation>
+   <operation name="setupPageMainMenu" type="void" visibility="0x02" properties="0x01">
+    <code>ESP_LOGD(TAG, &quot;[IHM_SETUP_PAGE_MAIN_MENU]&quot;);
+
+postUart_setPage(MAIN_MENU_PICID);
+
+postUart_setString(NAVBAR_TEXT_VP, &quot;HOME&quot;, true);
+postUart_setIcon(NAVBAR_ICON_HOME_VP, 0);
+postUart_setIcon(NAVBAR_ICON_GEAR_VP, 1);</code>
+   </operation>
+   <operation name="setupPageManualControls" type="void" visibility="0x02" properties="0x01">
+    <code>ESP_LOGD(TAG, &quot;[IHM_SETUP_PAGE_MANUAL_CONTROLS]&quot;);
+
+postUart_setPage(CONTROLS_PICID);
+
+postUart_setIcon(NEXT_COMMAND_ICON_VP, 0);
+postUart_setString(NEXT_COMMAND_TEXT_VP, &quot;\0&quot;, false);
+postUart_setString(NEXT_COMMAND_TIMER_TEXT_VP, &quot;\0&quot;, false);
+
+postUart_setIcon(CONTROL_POTENCIA_ICON_VP, 0);
+postUart_setString(CONTROL_POTENCIA_TEXT_VP, &quot;\0&quot;, false);
+
+postUart_setIcon(CONTROL_CILINDRO_ICON_VP, 0);
+postUart_setString(CONTROL_CILINDRO_TEXT_VP, &quot;\0&quot;, false);
+
+postUart_setIcon(CONTROL_RESFRIADOR_ICON_VP, 0);
+postUart_setIcon(CONTROL_TURBINA_ICON_VP, 0);</code>
+   </operation>
+   <operation name="resetState" type="void" visibility="0x02" properties="0x00">
+    <code>me-&gt;state.control = (ControlState){
+    .potencia = 0,
+    .cilindro = 0,
+    .turbina = TOGGLE_OFF,
+    .resfriador = TOGGLE_OFF
+};</code>
+   </operation>
+   <statechart properties="0x00">
+    <initial target="../1">
+     <action>/* (!) trigger the initial transition in the component */
+QHSM_INIT((QHsm *)&amp;me-&gt;stage, (void *)0, me-&gt;super.prio);
+
+/* (!) trigger the initial transition in the component */
+QHSM_INIT((QHsm *)&amp;me-&gt;substage, (void *)0, me-&gt;super.prio);</action>
+     <initial_glyph conn="147,3,4,0,17">
+      <action box="0,-2,10,2"/>
+     </initial_glyph>
+    </initial>
+    <state name="main_menu">
+     <entry>ESP_LOGD(TAG, &quot;[MAIN_MENU][ENTRY]&quot;);
+
+Ihm_setupPageMainMenu();</entry>
+     <exit>ESP_LOGD(TAG, &quot;[MAIN_MENU][EXIT]&quot;);</exit>
+     <tran trig="IHM_INPUT_TOUCH">
+      <action>IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);</action>
+      <choice target="../../../2">
+       <guard>ihmEv-&gt;length == 3</guard>
+       <choice_glyph conn="141,38,4,3,10,-84,63,19">
+        <action box="1,0,10,2"/>
+       </choice_glyph>
+      </choice>
+      <choice target="../../../6">
+       <guard>ihmEv-&gt;length == 4</guard>
+       <choice_glyph conn="141,38,4,3,12,-84,263,21">
+        <action box="1,0,10,2"/>
+       </choice_glyph>
+      </choice>
+      <choice target="../../../7">
+       <guard>ihmEv-&gt;length == 5</guard>
+       <choice_glyph conn="141,38,4,3,14,-84,341,22">
+        <action box="1,0,10,2"/>
+       </choice_glyph>
+      </choice>
+      <choice target="../../../8">
+       <guard>ihmEv-&gt;length == 2</guard>
+       <choice_glyph conn="141,38,5,3,70">
+        <action box="1,0,10,2"/>
+       </choice_glyph>
+      </choice>
+      <tran_glyph conn="122,38,3,-1,19">
+       <action box="0,-2,10,2"/>
+      </tran_glyph>
+     </tran>
+     <state_glyph node="122,20,39,25">
+      <entry box="1,2,6,2"/>
+      <exit box="1,4,6,2"/>
+     </state_glyph>
+    </state>
+    <state name="manual_mode">
+     <entry>ESP_LOGD(TAG, &quot;[MANUAL_MODE][ENTRY]&quot;);
+
+Ihm_setupPageManualMode();
+Ihm_resetState(me);
+
+RequestModeEvt *ram = Q_NEW(RequestModeEvt, REQUEST_MODE_SIG);
+ram-&gt;mode = MODE_MANUAL;
+strcpy(ram-&gt;roast, &quot;&quot;);
+QACTIVE_POST(AO_DataBroker, &amp;ram-&gt;super, me);</entry>
+     <exit>ESP_LOGD(TAG, &quot;[MANUAL_MODE][EXIT]&quot;);
+
+RequestModeEvt *ram = Q_NEW(RequestModeEvt, REQUEST_MODE_SIG);
+ram-&gt;mode = MODE_NONE;
+strcpy(ram-&gt;roast, &quot;&quot;);
+
+QACTIVE_POST(AO_DataBroker, &amp;ram-&gt;super, me);</exit>
+     <initial target="../5">
+      <initial_glyph conn="80,117,5,3,3,7,2">
+       <action box="0,-2,10,2"/>
+      </initial_glyph>
+     </initial>
+     <tran trig="IHM_INPUT_TOUCH">
+      <action>IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);</action>
+      <choice target="../../../3">
+       <guard>ihmEv-&gt;length == 4</guard>
+       <choice_glyph conn="97,105,4,2,-23">
+        <action box="1,0,10,2"/>
+       </choice_glyph>
+      </choice>
+      <choice>
+       <guard>ihmEv-&gt;length == 3</guard>
+       <action>RequestNextStageEvt *stageEv = Q_NEW(RequestNextStageEvt, REQUEST_NEXT_STAGE_SIG);
+QACTIVE_POST(AO_DataBroker, &amp;stageEv-&gt;super, me);</action>
+       <choice_glyph conn="97,105,5,-1,14">
+        <action box="1,0,10,2"/>
+       </choice_glyph>
+      </choice>
+      <choice>
+       <guard>ihmEv-&gt;length == 5</guard>
+       <action>RequestNextSubstageEvt *substageEv = Q_NEW(RequestNextSubstageEvt, REQUEST_NEXT_SUBSTAGE_SIG);
+QACTIVE_POST(AO_DataBroker, &amp;substageEv-&gt;super, me);</action>
+       <choice_glyph conn="97,105,4,-1,6,14">
+        <action box="1,0,10,2"/>
+       </choice_glyph>
+      </choice>
+      <choice target="../../../1">
+       <guard>ihmEv-&gt;length == 1</guard>
+       <choice_glyph conn="97,105,4,3,-5,-53,-70,78">
+        <action box="1,0,10,2"/>
+       </choice_glyph>
+      </choice>
+      <choice target="../../../8">
+       <guard>ihmEv-&gt;length == 2</guard>
+       <choice_glyph conn="97,105,4,3,-5,86,-62,28">
+        <action box="1,0,10,2"/>
+       </choice_glyph>
+      </choice>
+      <tran_glyph conn="76,105,3,-1,21">
+       <action box="0,-2,10,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="CONTROL_DATA">
+      <action>ControlDataEvt *contEv = Q_EVT_CAST(ControlDataEvt);
+
+ControlType control = contEv-&gt;control;
+void *payload = contEv-&gt;payload;
+
+if(contEv-&gt;control == POTENCIA) {
+    me-&gt;state.control.potencia = (int) payload;
+} else if(contEv-&gt;control == CILINDRO) {
+    me-&gt;state.control.cilindro = (int) payload;
+} else if(contEv-&gt;control == TURBINA) {
+    me-&gt;state.control.turbina = (ControlToggle) payload;
+} else if(contEv-&gt;control == RESFRIADOR) {
+    me-&gt;state.control.resfriador = (ControlToggle) payload;
+}</action>
+      <tran_glyph conn="76,139,3,-1,17">
+       <action box="0,-2,18,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="SENSOR_DATA">
+      <action>SensorDataEvt *sensorEv = Q_EVT_CAST(SensorDataEvt);
+
+SensorType type = sensorEv-&gt;type;
+int value = sensorEv-&gt;value;
+int delta = sensorEv-&gt;delta;
+
+if(type == SENSOR_GRAO) {
+    char graoStr[6] = {0};
+    sprintf(graoStr, &quot;%d C&quot;, value);
+    postUart_setString(SENSOR_GRAO_TEXT_VP, graoStr, true);
+
+    char graoDeltaStr[6] = {0};
+    sprintf(graoDeltaStr, &quot;%d&quot;, value);
+    postUart_setString(DELTA_GRAO_TEXT_VP, graoDeltaStr, true);
+} else if(sensorEv-&gt;type == SENSOR_AR) {
+    char graoStr[6] = {0};
+    sprintf(graoStr, &quot;%d C&quot;, value);
+    postUart_setString(SENSOR_GRAO_TEXT_VP, graoStr, true);
+
+    char graoDeltaStr[6] = {0};
+    sprintf(graoDeltaStr, &quot;%d&quot;, value);
+    postUart_setString(DELTA_GRAO_TEXT_VP, graoDeltaStr, true);
+} else if(sensorEv-&gt;type == SENSOR_GAS) {
+    char gasStr[6] = {0};
+    sprintf(gasStr, &quot;%d&quot;, value);
+    postUart_setString(SENSOR_GAS_TEXT_VP, gasStr, true);
+}</action>
+      <tran_glyph conn="76,142,3,-1,17">
+       <action box="0,-2,15,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="CHART_DATA">
+      <tran_glyph conn="76,145,3,-1,17">
+       <action box="0,-2,16,2"/>
+      </tran_glyph>
+     </tran>
+     <state name="idle">
+      <entry>ESP_LOGD(TAG, &quot;[MANUAL_MODE][IDLE][ENTRY]&quot;);</entry>
+      <exit>ESP_LOGD(TAG, &quot;[MANUAL_MODE][IDLE][EXIT]&quot;);</exit>
+      <tran trig="NOTIFY_NEXT_STAGE" target="../../6/0">
+       <action>QHSM_DISPATCH((QHsm *)&amp;me-&gt;stage, e, me-&gt;super.prio);</action>
+       <tran_glyph conn="116,122,1,3,9,19,5">
+        <action box="0,-2,10,2"/>
+       </tran_glyph>
+      </tran>
+      <state_glyph node="85,115,31,19">
+       <entry box="1,2,6,2"/>
+       <exit box="1,4,6,2"/>
+      </state_glyph>
+     </state>
+     <state name="active">
+      <entry>ESP_LOGD(TAG, &quot;[MANUAL_MODE][ACTIVE][ENTRY]&quot;);</entry>
+      <exit>ESP_LOGD(TAG, &quot;[MANUAL_MODE][ACTIVE][EXIT]&quot;);</exit>
+      <state name="pre_heating">
+       <entry>ESP_LOGD(TAG, &quot;[MANUAL_MODE][ACTIVE][PRE_HEATING][ENTRY]&quot;);</entry>
+       <exit>ESP_LOGD(TAG, &quot;[MANUAL_MODE][ACTIVE][PRE_HEATING][EXIT]&quot;);</exit>
+       <tran trig="NOTIFY_NEXT_STAGE" target="../../1/1">
+        <action>QHSM_DISPATCH((QHsm *)&amp;me-&gt;stage, e, me-&gt;super.prio);</action>
+        <tran_glyph conn="160,137,1,3,8">
+         <action box="0,-2,10,2"/>
+        </tran_glyph>
+       </tran>
+       <state_glyph node="130,132,30,16">
+        <entry box="1,2,6,2"/>
+        <exit box="1,4,6,2"/>
+       </state_glyph>
+      </state>
+      <state name="chart">
+       <entry>ESP_LOGD(TAG, &quot;[MANUAL_MODE][ACTIVE][CHART][ENTRY]&quot;);
+
+QTimeEvt_armX(&amp;me-&gt;stageTimerEvt, STAGE_TIMER_INTERVAL, 0U);</entry>
+       <exit>ESP_LOGD(TAG, &quot;[MANUAL_MODE][ACTIVE][CHART][EXIT]&quot;);
+
+QTimeEvt_disarm(&amp;me-&gt;stageTimerEvt);</exit>
+       <tran trig="IHM_STAGE_TIMER_TIMEOUT">
+        <action>QHSM_DISPATCH((QHsm *)&amp;me-&gt;stage, e, me-&gt;super.prio);
+
+QTimeEvt_rearm(&amp;me-&gt;stageTimerEvt, STAGE_TIMER_INTERVAL);</action>
+        <tran_glyph conn="164,121,3,-1,17">
+         <action box="0,-2,10,2"/>
+        </tran_glyph>
+       </tran>
+       <state name="roasting">
+        <entry>ESP_LOGD(TAG, &quot;[MANUAL_MODE][ACTIVE][CHART][ROASTING][ENTRY]&quot;);</entry>
+        <exit>ESP_LOGD(TAG, &quot;[MANUAL_MODE][ACTIVE][CHART][ROASTING][EXIT]&quot;);</exit>
+        <tran trig="NOTIFY_NEXT_STAGE" target="../../2">
+         <action>QHSM_DISPATCH((QHsm *)&amp;me-&gt;stage, e, me-&gt;super.prio);</action>
+         <tran_glyph conn="198,136,1,3,6">
+          <action box="0,-2,10,2"/>
+         </tran_glyph>
+        </tran>
+        <state_glyph node="168,129,30,17">
+         <entry box="1,2,6,2"/>
+         <exit box="1,4,6,2"/>
+        </state_glyph>
+       </state>
+       <state name="cooling">
+        <entry>ESP_LOGD(TAG, &quot;[MANUAL_MODE][ACTIVE][CHART][COOLING][ENTRY]&quot;);</entry>
+        <exit>ESP_LOGD(TAG, &quot;[MANUAL_MODE][ACTIVE][CHART][ROASTING][EXIT]&quot;);</exit>
+        <tran trig="NOTIFY_NEXT_STAGE" target="../../../../../9">
+         <tran_glyph conn="237,137,1,3,55,1,2">
+          <action box="0,-2,10,2"/>
+         </tran_glyph>
+        </tran>
+        <state_glyph node="204,129,33,17">
+         <entry box="1,2,6,2"/>
+         <exit box="1,4,6,2"/>
+        </state_glyph>
+       </state>
+       <state_glyph node="164,112,74,36">
+        <entry box="1,2,6,2"/>
+        <exit box="1,4,6,2"/>
+       </state_glyph>
+      </state>
+      <state_glyph node="127,106,116,45">
+       <entry box="1,2,6,2"/>
+       <exit box="1,4,6,2"/>
+      </state_glyph>
+     </state>
+     <state_glyph node="76,96,170,57">
+      <entry box="1,2,6,2"/>
+      <exit box="1,4,6,2"/>
+     </state_glyph>
+    </state>
+    <state name="manual_controls">
+     <state_glyph node="83,66,60,16"/>
+    </state>
+    <state name="auto_mode">
+     <entry>ESP_LOGD(TAG, &quot;[MANUAL_MODE][ENTRY]&quot;);
+
+Ihm_setupPageManualMode();</entry>
+     <exit>ESP_LOGD(TAG, &quot;[MANUAL_MODE][EXIT]&quot;);</exit>
+     <tran trig="IHM_INPUT_TOUCH">
+      <action>IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);</action>
+      <choice>
+       <guard>ihmEv-&gt;length == 4</guard>
+       <choice_glyph conn="99,213,4,-1,-23">
+        <action box="1,0,10,2"/>
+       </choice_glyph>
+      </choice>
+      <choice>
+       <guard>ihmEv-&gt;length == 3</guard>
+       <action>RequestNextStageEvt *stageEv = Q_NEW(RequestNextStageEvt, REQUEST_NEXT_STAGE_SIG);
+QACTIVE_POST(AO_DataBroker, &amp;stageEv-&gt;super, me);</action>
+       <choice_glyph conn="99,213,5,-1,14">
+        <action box="1,0,10,2"/>
+       </choice_glyph>
+      </choice>
+      <tran_glyph conn="78,213,3,-1,21">
+       <action box="0,-2,10,2"/>
+      </tran_glyph>
+     </tran>
+     <state_glyph node="78,204,148,51">
+      <entry box="1,2,6,2"/>
+      <exit box="1,4,6,2"/>
+     </state_glyph>
+    </state>
+    <state name="auto_controls">
+     <state_glyph node="77,168,60,16"/>
+    </state>
+    <state name="recipes">
+     <state_glyph node="78,292,158,38"/>
+    </state>
+    <state name="roasts">
+     <state_glyph node="79,372,157,39"/>
+    </state>
+    <state name="manual_config">
+     <state_glyph node="211,21,36,26"/>
+    </state>
+    <state name="summary">
+     <state_glyph node="294,130,31,18"/>
+    </state>
+    <state_diagram size="1565,616"/>
+   </statechart>
+  </class>
+  <class name="DataBroker" superclass="qpc::QActive">
+   <attribute name="time_start" type="time_t" visibility="0x00" properties="0x00"/>
+   <attribute name="pre_heat_value" type="int" visibility="0x00" properties="0x00"/>
+   <attribute name="cooler_value" type="int" visibility="0x00" properties="0x00"/>
+   <attribute name="sensorData" type="SensorData" visibility="0x00" properties="0x01">
+    <code>= {0};</code>
+   </attribute>
+   <attribute name="aux_ar" type="int" visibility="0x02" properties="0x01">
+    <code> = 0;</code>
+   </attribute>
+   <attribute name="aux_grao" type="int" visibility="0x02" properties="0x01">
+    <code> = 0;</code>
+   </attribute>
+   <attribute name="recipeTimerEvt" type="QTimeEvt" visibility="0x00" properties="0x00"/>
+   <attribute name="recipe_commands" type="RecipeCommands" visibility="0x02" properties="0x00">
+    <code> = {
+    .intervals = {0},
+    .controls = {0},
+    .values = {0},
+    .count = 0,
+};</code>
+   </attribute>
+   <attribute name="curr_command" type="int" visibility="0x02" properties="0x00"/>
+   <attribute name="curr_mode" type="ModeData" visibility="0x02" properties="0x00"/>
+   <operation name="updateSensorData" type="void" visibility="0x02" properties="0x00">
+    <parameter name="type" type="SensorType"/>
+    <parameter name="value" type="int"/>
+    <parameter name="sensorData" type="SensorData *"/>
+    <parameter name="enqueue" type="bool"/>
+    <code>if(value &gt; sensorData-&gt;max_temp) {
+   sensorData-&gt;max_temp = value;
+} else if(value &lt; sensorData-&gt;min_temp) {
+    sensorData-&gt;min_temp = value;
+}
+
+if(type == SENSOR_GRAO &amp;&amp; sensorData-&gt;temps_grao_count &gt; 0) {
+    int value_cmp = (value - sensorData-&gt;deltas_grao[sensorData-&gt;temps_grao_count-1])*10;
+
+    if(value_cmp &gt; sensorData-&gt;max_temp_delta) {
+        sensorData-&gt;max_temp_delta = value_cmp;
+    } else if(value_cmp &lt; sensorData-&gt;min_temp_delta) {
+        sensorData-&gt;min_temp_delta = value_cmp;
+    }
+} else if(type == SENSOR_AR &amp;&amp; sensorData-&gt;temps_ar_count &gt; 0) {
+    int value_cmp = (value - sensorData-&gt;deltas_ar[sensorData-&gt;temps_ar_count-1])*10;
+
+    if(value_cmp &gt; sensorData-&gt;max_temp_delta) {
+        sensorData-&gt;max_temp_delta = value_cmp;
+    } else if(value_cmp &lt; sensorData-&gt;min_temp_delta) {
+        sensorData-&gt;min_temp_delta = value_cmp;
+    }
+}
+
+if(!enqueue) {
+    if(type == SENSOR_GRAO) {
+        sensorData-&gt;temps_grao[0] = value;
+        sensorData-&gt;deltas_grao[0] = 0;
+
+        sensorData-&gt;temps_grao_count = 1;
+    } else if(type == SENSOR_AR) {
+        sensorData-&gt;temps_ar[0] = value;
+        sensorData-&gt;deltas_ar[0] = 0;
+
+        sensorData-&gt;temps_ar_count = 1;
+    }
+} else {
+    if(type == SENSOR_GRAO) {
+        if(sensorData-&gt;temps_grao_count &lt; 31) {
+            int new_count = sensorData-&gt;temps_grao_count + 1;
+            sensorData-&gt;temps_grao_count = new_count;
+            sensorData-&gt;temps_grao[new_count-1] = value;
+            
+            if(sensorData-&gt;temps_grao_count &gt; 1) {
+                sensorData-&gt;deltas_grao[new_count-1] = value - sensorData-&gt;temps_grao[new_count-2];
+            } else if(sensorData-&gt;temps_grao_count == 1) {
+                sensorData-&gt;deltas_grao[0] = 0;
+            }
+        } else {
+            sensorData-&gt;temps_grao[DataBroker_aux_grao] = (sensorData-&gt;temps_grao[DataBroker_aux_grao] + sensorData-&gt;temps_grao[DataBroker_aux_grao+1]) / 2;
+            sensorData-&gt;deltas_grao[DataBroker_aux_grao] = (sensorData-&gt;deltas_grao[DataBroker_aux_grao] + sensorData-&gt;deltas_grao[DataBroker_aux_grao+1]) / 2;
+            for(int i=DataBroker_aux_grao+1; i &lt; 30; i++) {
+                sensorData-&gt;temps_grao[i] = sensorData-&gt;temps_grao[i+1];
+                sensorData-&gt;deltas_grao[i] = sensorData-&gt;deltas_grao[i+1];
+            }
+            sensorData-&gt;temps_grao[30] = value;
+            sensorData-&gt;deltas_grao[30] = value - sensorData-&gt;temps_grao[29];
+
+            DataBroker_aux_grao++;
+            DataBroker_aux_grao = DataBroker_aux_grao % 25;
+        }
+    } else if(type == SENSOR_AR) {
+        if(sensorData-&gt;temps_ar_count &lt; 31) {
+            int new_count = sensorData-&gt;temps_ar_count + 1;
+            sensorData-&gt;temps_ar_count = new_count;
+            sensorData-&gt;temps_ar[new_count-1] = value;
+            
+            if(sensorData-&gt;temps_ar_count &gt; 1) {
+                sensorData-&gt;deltas_ar[new_count-1] = value - sensorData-&gt;temps_ar[new_count-2];
+            } else if(sensorData-&gt;temps_ar_count == 1) {
+                sensorData-&gt;deltas_ar[0] = 0;
+            }
+        } else {
+            sensorData-&gt;temps_ar[DataBroker_aux_ar] = (sensorData-&gt;temps_ar[DataBroker_aux_ar] + sensorData-&gt;temps_ar[DataBroker_aux_ar+1]) / 2;
+            sensorData-&gt;deltas_ar[DataBroker_aux_ar] = (sensorData-&gt;deltas_ar[DataBroker_aux_ar] + sensorData-&gt;deltas_ar[DataBroker_aux_ar+1]) / 2;
+            for(int i=DataBroker_aux_ar+1; i &lt; 30; i++) {
+                sensorData-&gt;temps_ar[i] = sensorData-&gt;temps_ar[i+1];
+                sensorData-&gt;deltas_ar[i] = sensorData-&gt;deltas_ar[i+1];
+            }
+            sensorData-&gt;temps_ar[30] = value;
+            sensorData-&gt;deltas_ar[30] = value - sensorData-&gt;temps_ar[29];
+            
+            DataBroker_aux_ar++;
+            DataBroker_aux_ar = DataBroker_aux_ar % 25;
+        }
+    }
+}</code>
+   </operation>
+   <operation name="setupRecipe" type="void" visibility="0x02" properties="0x00">
+    <code>me-&gt;recipe_commands = (RecipeCommands){
+    .intervals = {0},
+    .controls = {0},
+    .values = {0},
+    .count = 0,
+};
+me-&gt;curr_command = 0;
+storage_get_recipe_commands(me-&gt;curr_mode.roast, &amp;me-&gt;recipe_commands);</code>
+   </operation>
+   <statechart properties="0x00">
+    <initial target="../1">
+     <initial_glyph conn="69,8,5,0,-14,8">
+      <action box="0,-2,10,2"/>
+     </initial_glyph>
+    </initial>
+    <state name="idle">
+     <entry>ESP_LOGI(TAG, &quot;[IDLE][ENTRY]&quot;);</entry>
+     <exit>ESP_LOGI(TAG, &quot;[IDLE][EXIT]&quot;);</exit>
+     <tran trig="REQUEST_RECIPES">
+      <action>RequestRecipesEvt *recipesEvt = Q_EVT_CAST(RequestRecipesEvt);
+uint8_t pageNum = recipesEvt-&gt;pageNum;
+
+RecipesResponse res = {0};
+int ret = storage_get_recipes_page(pageNum, &amp;res);
+
+if(ret != -1) {
+    uint8_t resPageNum = res.pageNum;
+    char roast1[25];
+    strcpy(roast1, res.roast1);
+    char roast2[25];
+    strcpy(roast2, res.roast2);
+    char roast3[25];
+    strcpy(roast3, res.roast3);
+
+    bool prevPage = res.prevPage;
+    bool nextPage = res.nextPage;
+    
+    ResponseRecipesEvt *rre = Q_NEW(ResponseRecipesEvt, RESPONSE_RECIPES_SIG);
+    rre-&gt;pageNum = res.pageNum;
+    strcpy(rre-&gt;roast1, res.roast1);
+    strcpy(rre-&gt;roast2, res.roast2);
+    strcpy(rre-&gt;roast3, res.roast3);
+    rre-&gt;prevPage = res.prevPage;
+    rre-&gt;nextPage = res.nextPage;
+    
+    QACTIVE_POST(AO_Ihm, &amp;rre-&gt;super, me);
+} else {
+    ESP_LOGE(TAG, &quot;Algo deu errado ao buscar as receitas&quot;);
+}</action>
+      <tran_glyph conn="16,31,3,-1,28">
+       <action box="0,-2,18,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="REQUEST_RECIPE">
+      <action>RequestRecipeEvt *reqEvt = Q_EVT_CAST(RequestRecipeEvt);
+char *roast = reqEvt-&gt;roast;
+
+SensorData sensorData = {0};
+RoastResponse res = {0};
+res.sensorData = &amp;sensorData;
+
+int ret = storage_get_roast(roast, &amp;res);
+
+if(ret != -1) {
+    ResponseRecipeEvt *rre = Q_NEW(ResponseRecipeEvt, RESPONSE_RECIPE_SIG);
+    strcpy(rre-&gt;roast, res.roast);    
+    rre-&gt;sensorData = res.sensorData;
+    
+    QACTIVE_POST(AO_Ihm, &amp;rre-&gt;super, me);
+} else {
+    ESP_LOGE(TAG, &quot;Algo deu errado ao buscar a receita %s&quot;, roast);
+}</action>
+      <tran_glyph conn="16,40,3,-1,28">
+       <action box="0,-2,21,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="REQUEST_MODE">
+      <action>RequestModeEvt *rme = Q_EVT_CAST(RequestModeEvt);</action>
+      <choice target="../../../3">
+       <guard brief="MODE_MANUAL">rme-&gt;mode == MODE_MANUAL</guard>
+       <action>NotifyModeEvt *nme = Q_NEW(NotifyModeEvt, NOTIFY_MODE_SIG);
+nme-&gt;mode = MODE_MANUAL;
+strcpy(nme-&gt;roast,&quot;&quot;);
+QACTIVE_POST(AO_Perif, &amp;nme-&gt;super, me);
+
+NotifyModeEvt *nme2 = Q_NEW(NotifyModeEvt, NOTIFY_MODE_SIG);
+nme2-&gt;mode = MODE_MANUAL;
+strcpy(nme2-&gt;roast,&quot;&quot;);
+QACTIVE_POST(AO_Ihm, &amp;nme2-&gt;super, me);
+
+me-&gt;curr_mode.mode = MODE_MANUAL;
+strcpy(me-&gt;curr_mode.roast, rme-&gt;roast);</action>
+       <choice_glyph conn="106,33,4,3,-12,19">
+        <action box="1,-11,17,2"/>
+       </choice_glyph>
+      </choice>
+      <choice target="../../../2/3/2">
+       <guard brief="MODE_AUTO">rme-&gt;mode == MODE_AUTO</guard>
+       <action>NotifyModeEvt *nme = Q_NEW(NotifyModeEvt, NOTIFY_MODE_SIG);
+nme-&gt;mode = MODE_AUTO;
+strcpy(nme-&gt;roast, rme-&gt;roast);
+QACTIVE_POST(AO_Perif, &amp;nme-&gt;super, me);
+
+NotifyModeEvt *nme2 = Q_NEW(NotifyModeEvt, NOTIFY_MODE_SIG);
+nme2-&gt;mode = MODE_AUTO;
+strcpy(nme2-&gt;roast,rme-&gt;roast);
+QACTIVE_POST(AO_Ihm, &amp;nme2-&gt;super, me);
+
+me-&gt;curr_mode.mode = MODE_AUTO;
+strcpy(me-&gt;curr_mode.roast, rme-&gt;roast);</action>
+       <choice_glyph conn="106,33,4,3,64,7">
+        <action box="0,6,16,2"/>
+       </choice_glyph>
+      </choice>
+      <tran_glyph conn="86,33,1,-1,20">
+       <action box="0,-2,24,3"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="REQUEST_ROASTS">
+      <action>RequestRoastsEvt *roastsEvt = Q_EVT_CAST(RequestRoastsEvt);
+uint8_t pageNum = roastsEvt-&gt;pageNum;
+
+RoastsResponse res = {0};
+int ret = storage_get_roasts_page(pageNum, &amp;res);
+
+if(ret != -1) {
+    uint8_t resPageNum = res.pageNum;
+    char roast1[25];
+    strcpy(roast1, res.roast1);
+    char roast2[25];
+    strcpy(roast2, res.roast2);
+    char roast3[25];
+    strcpy(roast3, res.roast3);
+
+    bool prevPage = res.prevPage;
+    bool nextPage = res.nextPage;
+    
+    ResponseRoastsEvt *rre = Q_NEW(ResponseRoastsEvt, RESPONSE_ROASTS_SIG);
+    rre-&gt;pageNum = res.pageNum;
+    strcpy(rre-&gt;roast1, res.roast1);
+    strcpy(rre-&gt;roast2, res.roast2);
+    strcpy(rre-&gt;roast3, res.roast3);
+    rre-&gt;prevPage = res.prevPage;
+    rre-&gt;nextPage = res.nextPage;
+    
+    QACTIVE_POST(AO_Ihm, &amp;rre-&gt;super, me);
+} else {
+    ESP_LOGE(TAG, &quot;Algo deu errado ao buscar as torras&quot;);
+}</action>
+      <tran_glyph conn="16,49,3,-1,28">
+       <action box="0,-2,18,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="REQUEST_ROAST">
+      <action>RequestRoastEvt *reqEvt = Q_EVT_CAST(RequestRoastEvt);
+char *roast = reqEvt-&gt;roast;
+
+SensorData sensorData = {0};
+RoastResponse res = {0};
+res.sensorData = &amp;sensorData;
+
+int ret = storage_get_roast(roast, &amp;res);
+
+if(ret != -1) {
+    ResponseRoastEvt *rre = Q_NEW(ResponseRoastEvt, RESPONSE_ROAST_SIG);
+    strcpy(rre-&gt;roast, res.roast);    
+    rre-&gt;sensorData = res.sensorData;
+    
+    QACTIVE_POST(AO_Ihm, &amp;rre-&gt;super, me);
+} else {
+    ESP_LOGE(TAG, &quot;Algo deu errado ao buscar a torra %s&quot;, roast);
+}</action>
+      <tran_glyph conn="16,54,3,-1,29">
+       <action box="0,-2,19,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="REQUEST_TRANSFORM_ROAST">
+      <action>RequestTransformRoastEvt *rtr = Q_EVT_CAST(RequestTransformRoastEvt);
+
+char roast[25];
+strcpy(roast, rtr-&gt;roast);
+
+storage_transform_roast(roast);</action>
+      <tran_glyph conn="16,62,3,-1,29">
+       <action box="0,-2,32,2"/>
+      </tran_glyph>
+     </tran>
+     <state_glyph node="16,16,70,100">
+      <entry box="1,2,6,2"/>
+      <exit box="1,4,6,2"/>
+     </state_glyph>
+    </state>
+    <state name="active_mode">
+     <entry>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][ENTRY]&quot;);
+
+me-&gt;pre_heat_value = 0;
+me-&gt;cooler_value = 0;</entry>
+     <exit>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][ENTRY]&quot;);</exit>
+     <tran trig="UPDATE_CONTROL">
+      <action>UpdateControlEvt *contEv = Q_EVT_CAST(UpdateControlEvt);
+QACTIVE_POST(AO_Perif, contEv, me);</action>
+      <tran_glyph conn="102,148,3,-1,23,1">
+       <action box="0,-2,17,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="CONTROL_DATA">
+      <action>ControlDataEvt *contEv = Q_EVT_CAST(ControlDataEvt);
+QACTIVE_POST(AO_Ihm, contEv, me);</action>
+      <tran_glyph conn="102,153,3,-1,23">
+       <action box="0,-2,19,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="REQUEST_MODE">
+      <action>RequestModeEvt *rme = Q_EVT_CAST(RequestModeEvt);</action>
+      <choice target="../../../1">
+       <guard>rme-&gt;mode == MODE_NONE</guard>
+       <action>NotifyModeEvt *nme = Q_NEW(NotifyModeEvt, NOTIFY_MODE_SIG);
+nme-&gt;mode = MODE_NONE;
+strcpy(nme-&gt;roast,&quot;&quot;);
+QACTIVE_POST(AO_Perif, &amp;nme-&gt;super, me);
+
+NotifyModeEvt *nme2 = Q_NEW(NotifyModeEvt, NOTIFY_MODE_SIG);
+nme2-&gt;mode = MODE_NONE;
+strcpy(nme2-&gt;roast,&quot;&quot;);
+QACTIVE_POST(AO_Ihm, &amp;nme2-&gt;super, me);
+
+me-&gt;curr_mode.mode = MODE_NONE;
+strcpy(me-&gt;curr_mode.roast, rme-&gt;roast);</action>
+       <choice_glyph conn="112,68,4,1,-11,-26">
+        <action box="1,0,10,2"/>
+       </choice_glyph>
+      </choice>
+      <tran_glyph conn="112,76,0,-1,-8">
+       <action box="2,-13,21,2"/>
+      </tran_glyph>
+     </tran>
+     <state name="pre_heating">
+      <entry>storage_create_new_roast();</entry>
+      <tran trig="SENSOR_UPDATE">
+       <action>SensorUpdateEvt *sensorEv = Q_EVT_CAST(SensorUpdateEvt);
+
+if(sensorEv-&gt;type == SENSOR_GRAO) {
+    me-&gt;pre_heat_value = sensorEv-&gt;value;
+}
+
+/*
+DataBroker_updateSensorData(me, sensorEv-&gt;type, sensorEv-&gt;value, &amp;DataBroker_sensorData, false);
+SensorDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_DATA_SIG);
+sensorDataEv-&gt;sensorData = &amp;DataBroker_sensorData;
+sensorDataEv-&gt;type = sensorEv-&gt;type;
+
+QACTIVE_POST(AO_Ihm, sensorDataEv, me);
+*/</action>
+       <tran_glyph conn="107,108,3,-1,14">
+        <action box="0,-2,16,2"/>
+       </tran_glyph>
+      </tran>
+      <tran trig="SENSOR_GAS_UPDATE">
+       <action>SensorGasUpdateEvt *sensorEv = Q_EVT_CAST(SensorGasUpdateEvt);
+
+SensorGasDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_GAS_DATA_SIG);
+sensorDataEv-&gt;value = sensorEv-&gt;value;
+
+QACTIVE_POST(AO_Ihm, sensorDataEv, me);</action>
+       <tran_glyph conn="107,110,3,-1,20,-3">
+        <action box="0,-2,10,2"/>
+       </tran_glyph>
+      </tran>
+      <state name="auto_pre_heating">
+       <entry>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][AUTO_PRE_HEATING][ENTRY]&quot;);
+
+ESP_LOGE(TAG, &quot;recipe: %s&quot;, me-&gt;curr_mode.roast);
+DataBroker_setupRecipe(me);</entry>
+       <exit>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][AUTO_PRE_HEATING][EXIT]&quot;);</exit>
+       <tran trig="REQUEST_NEXT_STAGE" target="../../../4/3">
+        <action>NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = true;
+QACTIVE_POST(AO_Ihm, &amp;stageEv-&gt;super, me);
+
+NotifyNextStageEvt *stageEv2 = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = true;
+QACTIVE_POST(AO_Perif, &amp;stageEv2-&gt;super, me);</action>
+        <tran_glyph conn="149,93,1,3,16,4,15">
+         <action box="0,-2,10,2"/>
+        </tran_glyph>
+       </tran>
+       <state_glyph node="113,85,36,20">
+        <entry box="1,2,6,2"/>
+        <exit box="1,4,6,2"/>
+       </state_glyph>
+      </state>
+      <state name="manual_pre_heating">
+       <entry>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][MANUAL_PRE_HEATING][ENTRY]&quot;);</entry>
+       <exit>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][MANUAL_PRE_HEATING][EXIT]&quot;);</exit>
+       <tran trig="REQUEST_NEXT_STAGE" target="../../../4/4">
+        <action>NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = false;
+QACTIVE_POST(AO_Ihm, &amp;stageEv-&gt;super, me);
+
+NotifyNextStageEvt *stageEv2 = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = false;
+QACTIVE_POST(AO_Perif, &amp;stageEv2-&gt;super, me);</action>
+        <tran_glyph conn="150,119,1,3,14,2,15">
+         <action box="0,-2,16,2"/>
+        </tran_glyph>
+       </tran>
+       <state_glyph node="114,110,36,20">
+        <entry box="1,2,6,2"/>
+        <exit box="1,4,6,2"/>
+       </state_glyph>
+      </state>
+      <state_glyph node="107,81,49,51">
+       <entry box="1,2,6,2"/>
+      </state_glyph>
+     </state>
+     <state name="roasting">
+      <entry>time_t time_now;
+time(&amp;time_now);
+
+me-&gt;time_start = time_now;
+
+storage_add_roast_pre_heat_record(0, me-&gt;pre_heat_value);</entry>
+      <tran trig="SENSOR_UPDATE">
+       <action>SensorUpdateEvt *sensorEv = Q_EVT_CAST(SensorUpdateEvt);
+
+if(sensorEv-&gt;type == SENSOR_GRAO) {
+    me-&gt;cooler_value = sensorEv-&gt;value;
+}
+
+/*
+DataBroker_updateSensorData(me, sensorEv-&gt;type, sensorEv-&gt;value, &amp;DataBroker_sensorData, true);
+SensorDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_DATA_SIG);
+sensorDataEv-&gt;sensorData = &amp;DataBroker_sensorData;
+sensorDataEv-&gt;type = sensorEv-&gt;type;
+
+QACTIVE_POST(AO_Ihm, sensorDataEv, me);
+*/
+
+time_t time_now;
+time(&amp;time_now);
+
+time_t time_elapsed = time_now - me-&gt;time_start;
+storage_add_roast_sensor_record(time_elapsed, sensorEv-&gt;type, sensorEv-&gt;value);</action>
+       <tran_glyph conn="173,108,3,-1,14,1">
+        <action box="0,-2,10,2"/>
+       </tran_glyph>
+      </tran>
+      <tran trig="CONTROL_DATA">
+       <action>ControlDataEvt *contEv = Q_EVT_CAST(ControlDataEvt);
+QACTIVE_POST(AO_Ihm, contEv, me);
+
+time_t time_now;
+time(&amp;time_now);
+
+time_t time_elapsed = time_now - me-&gt;time_start;
+storage_add_roast_control_record(time_elapsed, contEv-&gt;control, contEv-&gt;payload);</action>
+       <tran_glyph conn="173,110,3,-1,14">
+        <action box="0,-2,10,2"/>
+       </tran_glyph>
+      </tran>
+      <tran trig="SENSOR_GAS_UPDATE">
+       <action>SensorGasUpdateEvt *sensorEv = Q_EVT_CAST(SensorGasUpdateEvt);
+
+SensorGasDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_GAS_DATA_SIG);
+sensorDataEv-&gt;value = sensorEv-&gt;value;
+
+QACTIVE_POST(AO_Ihm, sensorDataEv, me);
+
+time_t time_now;
+time(&amp;time_now);
+
+time_t time_elapsed = time_now - me-&gt;time_start;
+storage_add_roast_gas_record(time_elapsed, sensorEv-&gt;value);</action>
+       <tran_glyph conn="173,113,3,-1,5">
+        <action box="0,-2,10,2"/>
+       </tran_glyph>
+      </tran>
+      <state name="auto_roasting">
+       <entry>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][AUTO_ROASTING][ENTRY]&quot;);
+
+
+
+time_t time_now;
+time(&amp;time_now);
+
+time_t time_elapsed = time_now - me-&gt;time_start;
+time_t time_command = (me-&gt;recipe_commands.intervals[me-&gt;curr_command] - time_elapsed);
+
+if(time_command &lt;= 0)
+    time_command = 1;
+
+if(me-&gt;curr_command &lt; me-&gt;recipe_commands.count) {
+    ESP_LOGD(TAG, &quot;Scheduled command %d for %lds - value: %d&quot;, me-&gt;recipe_commands.controls[me-&gt;curr_command], time_command, me-&gt;recipe_commands.values[me-&gt;curr_command]);
+    QTimeEvt_armX(&amp;me-&gt;recipeTimerEvt, time_command * CONFIG_FREERTOS_HZ, 0U);
+}</entry>
+       <exit>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][AUTO_ROASTING][EXIT]&quot;);</exit>
+       <tran trig="REQUEST_NEXT_STAGE" target="../../../5/2">
+        <action>NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = true;
+QACTIVE_POST(AO_Ihm, &amp;stageEv-&gt;super, me);
+
+NotifyNextStageEvt *stageEv2 = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = true;
+QACTIVE_POST(AO_Perif, &amp;stageEv2-&gt;super, me);</action>
+        <tran_glyph conn="213,96,1,3,20">
+         <action box="0,-2,10,2"/>
+        </tran_glyph>
+       </tran>
+       <tran trig="DATA_RECIPE_TIMEOUT">
+        <action>QTimeEvt_disarm(&amp;me-&gt;recipeTimerEvt);
+
+ControlType control = me-&gt;recipe_commands.controls[me-&gt;curr_command];
+int value = me-&gt;recipe_commands.values[me-&gt;curr_command];
+
+UpdateControlEvt *contEv = Q_NEW(UpdateControlEvt, UPDATE_CONTROL_SIG);
+contEv-&gt;control = control;
+contEv-&gt;value = value;
+QACTIVE_POST(AO_Perif, contEv, me);
+
+/*
+ControlDataEvt *contEv2 = Q_EVT_CAST(ControlDataEvt);
+contEv2-&gt;control = control;
+contEv2-&gt;value = value;
+QACTIVE_POST(AO_Ihm, contEv, me);
+*/
+
+me-&gt;curr_command += 1;
+
+time_t time_now;
+time(&amp;time_now);
+
+time_t time_elapsed = time_now - me-&gt;time_start;
+time_t time_command = (me-&gt;recipe_commands.intervals[me-&gt;curr_command] - time_elapsed);
+
+if(time_command &lt;= 0)
+    time_command = 1;
+
+if(me-&gt;curr_command &lt; me-&gt;recipe_commands.count) {
+    ESP_LOGD(TAG, &quot;Scheduled command %d for %lds - value: %d&quot;, me-&gt;recipe_commands.controls[me-&gt;curr_command], time_command, me-&gt;recipe_commands.values[me-&gt;curr_command]);
+    QTimeEvt_armX(&amp;me-&gt;recipeTimerEvt, time_command * CONFIG_FREERTOS_HZ, 0U);
+}</action>
+        <tran_glyph conn="180,100,3,-1,28">
+         <action box="0,-2,27,2"/>
+        </tran_glyph>
+       </tran>
+       <state_glyph node="180,88,33,20">
+        <entry box="1,2,6,2"/>
+        <exit box="1,4,6,2"/>
+       </state_glyph>
+      </state>
+      <state name="manual_roasting">
+       <entry>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][MANUAL_ROASTING][ENTRY]&quot;);</entry>
+       <exit>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][MANUAL_ROASTING][EXIT]&quot;);</exit>
+       <tran trig="REQUEST_NEXT_STAGE" target="../../../5/3">
+        <action>NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = false;
+QACTIVE_POST(AO_Ihm, &amp;stageEv-&gt;super, me);
+
+NotifyNextStageEvt *stageEv2 = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = false;
+QACTIVE_POST(AO_Perif, &amp;stageEv2-&gt;super, me);</action>
+        <tran_glyph conn="215,121,1,0,14,0">
+         <action box="0,-2,10,2"/>
+        </tran_glyph>
+       </tran>
+       <state_glyph node="179,112,36,20">
+        <entry box="1,2,6,2"/>
+        <exit box="1,4,6,2"/>
+       </state_glyph>
+      </state>
+      <state_glyph node="173,82,48,53">
+       <entry box="1,2,6,2"/>
+      </state_glyph>
+     </state>
+     <state name="cooling">
+      <entry>time_t time_now;
+time(&amp;time_now);
+
+time_t time_elapsed = time_now - me-&gt;time_start;
+storage_add_roast_cooler_record(time_elapsed, me-&gt;cooler_value);</entry>
+      <tran trig="SENSOR_UPDATE">
+       <action>SensorUpdateEvt *sensorEv = Q_EVT_CAST(SensorUpdateEvt);
+
+/*
+DataBroker_updateSensorData(me, sensorEv-&gt;type, sensorEv-&gt;value, &amp;DataBroker_sensorData, true);
+SensorDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_DATA_SIG);
+sensorDataEv-&gt;sensorData = &amp;DataBroker_sensorData;
+sensorDataEv-&gt;type = sensorEv-&gt;type;
+
+QACTIVE_POST(AO_Ihm, sensorDataEv, me);
+*/
+
+time_t time_now;
+time(&amp;time_now);
+
+time_t time_elapsed = time_now - me-&gt;time_start;
+storage_add_roast_sensor_record(time_elapsed, sensorEv-&gt;type, sensorEv-&gt;value);</action>
+       <tran_glyph conn="225,108,3,-1,12">
+        <action box="0,-2,10,2"/>
+       </tran_glyph>
+      </tran>
+      <tran trig="CONTROL_DATA">
+       <action>ControlDataEvt *contEv = Q_EVT_CAST(ControlDataEvt);
+QACTIVE_POST(AO_Ihm, contEv, me);
+
+time_t time_now;
+time(&amp;time_now);
+
+time_t time_elapsed = time_now - me-&gt;time_start;
+storage_add_roast_control_record(time_elapsed, contEv-&gt;control, contEv-&gt;payload);</action>
+       <tran_glyph conn="225,110,3,-1,13">
+        <action box="0,-2,10,2"/>
+       </tran_glyph>
+      </tran>
+      <state name="auto_cooling">
+       <entry>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][AUTO_COOLING][ENTRY]&quot;);
+
+
+
+</entry>
+       <exit>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][AUTO_COOLING][EXIT]&quot;);
+
+QTimeEvt_disarm(&amp;me-&gt;recipeTimerEvt);</exit>
+       <tran trig="REQUEST_NEXT_STAGE" target="../../../6/1">
+        <action>NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = true;
+QACTIVE_POST(AO_Ihm, &amp;stageEv-&gt;super, me);
+
+NotifyNextStageEvt *stageEv2 = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = true;
+QACTIVE_POST(AO_Perif, &amp;stageEv2-&gt;super, me);</action>
+        <tran_glyph conn="262,94,1,3,17,2,1">
+         <action box="0,-2,10,2"/>
+        </tran_glyph>
+       </tran>
+       <tran trig="DATA_RECIPE_TIMEOUT">
+        <action>QTimeEvt_disarm(&amp;me-&gt;recipeTimerEvt);
+
+ControlType control = me-&gt;recipe_commands.controls[me-&gt;curr_command];
+int value = me-&gt;recipe_commands.values[me-&gt;curr_command];
+
+UpdateControlEvt *contEv = Q_NEW(UpdateControlEvt, UPDATE_CONTROL_SIG);
+contEv-&gt;control = control;
+contEv-&gt;value = value;
+QACTIVE_POST(AO_Perif, contEv, me);
+
+me-&gt;curr_command += 1;
+
+time_t time_now;
+time(&amp;time_now);
+
+time_t time_elapsed = time_now - me-&gt;time_start;
+time_t time_command = (me-&gt;recipe_commands.intervals[me-&gt;curr_command] - time_elapsed);
+
+if(time_command &lt;= 0)
+    time_command = 1;
+
+if(me-&gt;curr_command &lt; me-&gt;recipe_commands.count) {
+    ESP_LOGD(TAG, &quot;Scheduled command %d for %lds - value: %d&quot;, me-&gt;recipe_commands.controls[me-&gt;curr_command], time_command, me-&gt;recipe_commands.values[me-&gt;curr_command]);
+    QTimeEvt_armX(&amp;me-&gt;recipeTimerEvt, time_command * CONFIG_FREERTOS_HZ, 0U);
+}</action>
+        <tran_glyph conn="233,99,3,-1,23">
+         <action box="0,-2,10,2"/>
+        </tran_glyph>
+       </tran>
+       <state_glyph node="233,87,29,20">
+        <entry box="1,2,6,2"/>
+        <exit box="1,4,6,2"/>
+       </state_glyph>
+      </state>
+      <state name="manual_cooling">
+       <entry>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][MANUAL_COOLING][ENTRY]&quot;);
+
+</entry>
+       <exit>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][MANUAL_COOLING][EXIT]&quot;);</exit>
+       <tran trig="REQUEST_NEXT_STAGE" target="../../../6/0">
+        <action>NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = false;
+QACTIVE_POST(AO_Ihm, &amp;stageEv-&gt;super, me);
+
+NotifyNextStageEvt *stageEv2 = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = false;
+QACTIVE_POST(AO_Perif, &amp;stageEv2-&gt;super, me);</action>
+        <tran_glyph conn="265,122,1,3,11,-1,2">
+         <action box="0,-2,10,2"/>
+        </tran_glyph>
+       </tran>
+       <state_glyph node="229,111,36,20">
+        <entry box="1,2,6,2"/>
+        <exit box="1,4,6,2"/>
+       </state_glyph>
+      </state>
+      <state_glyph node="225,82,44,54">
+       <entry box="1,2,6,2"/>
+      </state_glyph>
+     </state>
+     <state name="summary">
+      <entry>//storage_get_current_roast_summary(&amp;me-&gt;temps_ar, &amp;me-&gt;temps_grao, &amp;me-&gt;temps_count_ar, &amp;me-&gt;temps_count_grao);</entry>
+      <state name="manual_summary">
+       <entry>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][MANUAL_SUMMARY][ENTRY]&quot;);
+
+</entry>
+       <exit>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][MANUAL_SUMMARY][EXIT]&quot;);</exit>
+       <tran trig="REQUEST_NEXT_STAGE" target="../../../3/3">
+        <action>NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = false;
+QACTIVE_POST(AO_Ihm, &amp;stageEv-&gt;super, me);
+
+NotifyNextStageEvt *stageEv2 = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = false;
+QACTIVE_POST(AO_Perif, &amp;stageEv2-&gt;super, me);</action>
+        <tran_glyph conn="292,131,2,2,13,-147,-14">
+         <action box="0,-2,22,2"/>
+        </tran_glyph>
+       </tran>
+       <state_glyph node="278,111,36,20">
+        <entry box="1,2,6,2"/>
+        <exit box="1,4,6,2"/>
+       </state_glyph>
+      </state>
+      <state name="auto_summary">
+       <entry>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][AUTO_COOLING][ENTRY]&quot;);</entry>
+       <exit>ESP_LOGI(TAG, &quot;[ACTIVE_MODE][AUTO_COOLING][EXIT]&quot;);</exit>
+       <tran trig="REQUEST_NEXT_STAGE" target="../../../3/2">
+        <action>NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = true;
+QACTIVE_POST(AO_Ihm, &amp;stageEv-&gt;super, me);
+
+NotifyNextStageEvt *stageEv2 = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = true;
+QACTIVE_POST(AO_Perif, &amp;stageEv2-&gt;super, me);</action>
+        <tran_glyph conn="289,89,0,0,-19,-161,15">
+         <action box="0,-2,23,2"/>
+        </tran_glyph>
+       </tran>
+       <state_glyph node="280,89,29,20">
+        <entry box="1,2,6,2"/>
+        <exit box="1,4,6,2"/>
+       </state_glyph>
+      </state>
+      <state_glyph node="274,82,44,54">
+       <entry box="1,2,6,2"/>
+      </state_glyph>
+     </state>
+     <state_glyph node="102,76,221,88">
+      <entry box="1,2,6,2"/>
+      <exit box="1,4,6,2"/>
+     </state_glyph>
+    </state>
+    <state name="sensoring">
+     <entry>ESP_LOGI(TAG, &quot;[MANUAL_MODE][MANUAL_IDLE][ENTRY]&quot;);
+
+</entry>
+     <exit>ESP_LOGI(TAG, &quot;[MANUAL_MODE][MANUAL_IDLE][EXIT]&quot;);
+
+DataBroker_sensorData.temps_grao_count = 0;
+DataBroker_sensorData.temps_ar_count = 0;
+DataBroker_sensorData.deltas_ar[0] = 0;
+DataBroker_sensorData.deltas_grao[0] = 0;</exit>
+     <tran trig="SENSOR_UPDATE">
+      <action>SensorUpdateEvt *sensorEv = Q_EVT_CAST(SensorUpdateEvt);
+
+DataBroker_updateSensorData(me, sensorEv-&gt;type, sensorEv-&gt;value, &amp;DataBroker_sensorData, false);
+
+/*
+SensorDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_DATA_SIG);
+sensorDataEv-&gt;sensorData = &amp;DataBroker_sensorData;
+sensorDataEv-&gt;type = sensorEv-&gt;type;
+
+QACTIVE_POST(AO_Ihm, sensorDataEv, me);
+
+*/</action>
+      <tran_glyph conn="125,30,3,-1,19">
+       <action box="0,-2,19,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="REQUEST_MODE">
+      <action>RequestModeEvt *rme = Q_EVT_CAST(RequestModeEvt);</action>
+      <choice target="../../../1">
+       <guard brief="EXIT_MODE">rme-&gt;mode == MODE_NONE</guard>
+       <choice_glyph conn="138,6,5,0,-63,10">
+        <action box="-20,2,11,2"/>
+       </choice_glyph>
+      </choice>
+      <tran_glyph conn="142,15,0,-1,-9,-4">
+       <action box="3,-6,17,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="REQUEST_NEXT_STAGE" target="../../2/3/3">
+      <action>NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = false;
+QACTIVE_POST(AO_Ihm, &amp;stageEv-&gt;super, me);
+
+NotifyNextStageEvt *stageEv2 = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
+stageEv-&gt;auto_mode = false;
+QACTIVE_POST(AO_Perif, &amp;stageEv2-&gt;super, me);</action>
+      <tran_glyph conn="136,35,2,3,22,-30,65,8">
+       <action box="-16,23,23,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="UPDATE_CONTROL">
+      <action>UpdateControlEvt *contEv = Q_EVT_CAST(UpdateControlEvt);
+QACTIVE_POST(AO_Perif, contEv, me);</action>
+      <tran_glyph conn="125,26,3,-1,21">
+       <action box="0,-2,21,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="CONTROL_DATA">
+      <action>ControlDataEvt *contEv = Q_EVT_CAST(ControlDataEvt);
+QACTIVE_POST(AO_Ihm, contEv, me);</action>
+      <tran_glyph conn="160,25,1,-1,-10">
+       <action box="-17,-4,19,2"/>
+      </tran_glyph>
+     </tran>
+     <state_glyph node="125,15,35,20">
+      <entry box="1,2,6,2"/>
+      <exit box="1,4,6,2"/>
+     </state_glyph>
+    </state>
+    <state_diagram size="535,271"/>
+   </statechart>
+  </class>
+  <class name="Uart" superclass="qpc::QActive">
+   <attribute name="uartQueue" type="QueueHandle_t" visibility="0x00" properties="0x00"/>
+   <operation name="uartTask" type="void" visibility="0x02" properties="0x01">
+    <parameter name="pvParameters" type="void *"/>
+    <code>Uart *me = &amp;l_uart;    
+uart_event_t uart_event;
+    
+    for (;;) {
+        if (xQueueReceive(me-&gt;uartQueue, (void *)&amp;uart_event, portMAX_DELAY)) {
+            size_t buffer_size = uart_event.size;
+            uint8_t data[128];
+
+            /* Checa se o tipo de evento é do tipo 0 (DATA), se não for, analisar pq pode ser fonte de bugs */
+            if (uart_event.type == 0) {
+                uart_read_bytes(UART_NUM, data, buffer_size, portMAX_DELAY);
+
+                Uart_processEvent(data, 0, buffer_size);
+            } else {
+                ESP_LOGE(TAG, &quot;[UNKNOWN UART EVENT]: %d&quot;, uart_event.type);
+            }
+        }
+    }</code>
+   </operation>
+   <operation name="processEvent" type="void" visibility="0x02" properties="0x01">
+    <parameter name="data" type="uint8_t *"/>
+    <parameter name="start" type="int"/>
+    <parameter name="end" type="int"/>
+    <code>/*
+Se não conter um header, é um touch release.
+Se conter, é um input no slider
+*/
+
+if(data[start] != '\x5A') {
+    UartInputTouchEvt *ure = Q_NEW(UartInputTouchEvt, UART_INPUT_TOUCH_SIG);
+    ure-&gt;length = end-start;
+
+    ESP_LOGI(TAG, &quot;[TOUCH], Length: %d&quot;, (end-start));
+    QACTIVE_POST(AO_Uart, &amp;ure-&gt;super, me);
+} else {
+    UartInputSliderEvt *ure = Q_NEW(UartInputSliderEvt, UART_INPUT_SLIDER_SIG);
+
+    unsigned short int vp = 0;
+    unsigned short int value = 0;
+    ControlType controlType = CONTROL_NONE;
+
+    memcpy(&amp;vp, data+4, sizeof(unsigned short int));
+    memcpy(&amp;value, data+7, sizeof(unsigned short int));
+    swapbytes(&amp;vp, sizeof(unsigned short int));
+    swapbytes(&amp;value, sizeof(unsigned short int));
+    
+    if(vp == VP_CONTROL_POTENCIA) {
+        controlType = POTENCIA;
+    } else if(vp == VP_CONTROL_CILINDRO) {
+        controlType = CILINDRO;
+    } else if(vp == VP_CONTROL_TURBINA) {
+        controlType = TURBINA;
+    }
+
+    ure-&gt;control = controlType;
+    ure-&gt;value = value;
+
+    ESP_LOGI(TAG, &quot;[SLIDER]: Type: %d, value %d&quot;, controlType, value);
+    QACTIVE_POST(AO_Uart, &amp;ure-&gt;super, me);
+}</code>
+   </operation>
+   <operation name="changePage" type="void" visibility="0x00" properties="0x01">
+    <parameter name="picid" type="unsigned short int"/>
+    <code>unsigned char container[MAX_CONTAINER_SIZE];
+
+ESP_LOGI(TAG, &quot;[CHANGE PAGE]: %u&quot;, picid);
+swapbytes(&amp;picid, sizeof(unsigned short int));
+
+int length = packet_picid(&amp;picid, container);
+
+ESP_LOGD(TAG, &quot;[UART CONTAINER]: [&quot;);
+for (int i = 0; i &lt; length; i++) {
+    ESP_LOGD(TAG, &quot;%2.2X &quot;, container[i]);
+}
+ESP_LOGD(TAG, &quot;]\n&quot;);
+
+uart_write_bytes(UART_NUM, container, length);</code>
+   </operation>
+   <operation name="changeIcon" type="void" visibility="0x00" properties="0x01">
+    <parameter name="vp" type="unsigned short int"/>
+    <parameter name="icon" type="unsigned short int"/>
+    <code>unsigned char container[MAX_CONTAINER_SIZE];
+
+swapbytes(&amp;vp, sizeof(vp));
+swapbytes(&amp;icon, sizeof(icon));
+int length = packet_write_vp(vp, &amp;icon, sizeof(unsigned short int), container);
+
+//print_container(container, length);
+uart_write_bytes(UART_NUM, container, length);</code>
+   </operation>
+   <operation name="changeText" type="void" visibility="0x00" properties="0x01">
+    <parameter name="vp" type="unsigned short int"/>
+    <parameter name="text" type="const char *"/>
+    <code>unsigned char container[MAX_CONTAINER_SIZE];
+
+swapbytes(&amp;vp, sizeof(vp));
+int length = packet_write_vp(vp, text, strlen(text), container);
+
+uart_write_bytes(UART_NUM, container, length);</code>
+   </operation>
+   <operation name="changeGraphicsCircle" type="void" visibility="0x00" properties="0x01">
+    <parameter name="vp" type="unsigned short int"/>
+    <parameter name="temperatures" type="int *"/>
+    <parameter name="count" type="unsigned short int"/>
+    <parameter name="sensor" type="SensorType"/>
+    <parameter name="minX" type="int"/>
+    <parameter name="maxX" type="int"/>
+    <parameter name="minY" type="int"/>
+    <parameter name="maxY" type="int"/>
+    <parameter name="delta" type="bool"/>
+    <parameter name="deltaX" type="int"/>
+    <parameter name="maxTemp" type="int"/>
+    <code>unsigned char container[MAX_CONTAINER_SIZE];
+unsigned char payload_container[MAX_PAYLOAD_SIZE];
+
+unsigned short int color = 0;
+if(sensor == SENSOR_GRAO) {
+    color = COLOR_GRAO;
+} else {
+    color = COLOR_AR;
+}
+
+swapbytes(&amp;vp, sizeof(vp));
+int payload_length = packet_graphics_circles(temperatures, count, color, minX, maxX, minY, maxY, delta, deltaX, maxTemp, payload_container);
+int length = packet_write_vp(vp, payload_container, payload_length, container);
+
+uart_write_bytes(UART_NUM, container, length);</code>
+   </operation>
+   <operation name="changeGraphicsLine" type="void" visibility="0x00" properties="0x01">
+    <parameter name="vp" type="unsigned short int"/>
+    <parameter name="values" type="int *"/>
+    <parameter name="count" type="unsigned short int"/>
+    <parameter name="sensor" type="SensorType"/>
+    <parameter name="minX" type="int"/>
+    <parameter name="maxX" type="int"/>
+    <parameter name="minY" type="int"/>
+    <parameter name="maxY" type="int"/>
+    <parameter name="deltaBound" type="bool"/>
+    <parameter name="deltaBoundX" type="int"/>
+    <parameter name="maxTemp" type="int"/>
+    <parameter name="minTemp" type="int"/>
+    <parameter name="originY" type="int"/>
+    <parameter name="isDelta" type="bool"/>
+    <code>unsigned char container[MAX_CONTAINER_SIZE];
+unsigned char payload_container[MAX_PAYLOAD_SIZE];
+
+unsigned short int color = 0;
+if(sensor == SENSOR_GRAO) {
+    color = COLOR_GRAO;
+} else {
+    color = COLOR_AR;
+}
+
+swapbytes(&amp;vp, sizeof(vp));
+int payload_length = packet_graphics_lines(values, count, color, minX, maxX, minY, maxY, deltaBound, deltaBoundX, minTemp, maxTemp, originY, isDelta, payload_container);
+int length = packet_write_vp(vp, payload_container, payload_length, container);
+
+uart_write_bytes(UART_NUM, container, length);</code>
+   </operation>
+   <operation name="changeChart" type="void" visibility="0x00" properties="0x01">
+    <parameter name="vp" type="unsigned short int"/>
+    <parameter name="sensor" type="SensorType"/>
+    <parameter name="values" type="int *"/>
+    <parameter name="count" type="unsigned short int"/>
+    <parameter name="minX" type="int"/>
+    <parameter name="maxX" type="int"/>
+    <parameter name="minY" type="int"/>
+    <parameter name="maxY" type="int"/>
+    <parameter name="deltaBound" type="bool"/>
+    <parameter name="deltaBoundX" type="int"/>
+    <parameter name="minTemp" type="int"/>
+    <parameter name="maxTemp" type="int"/>
+    <parameter name="originY" type="int"/>
+    <parameter name="isDelta" type="bool"/>
+    <code>if(sensor == SENSOR_AR) {
+    Uart_changeGraphicsLine(vp, values, count, sensor, minX, maxX, minY, maxY, deltaBound, deltaBoundX, maxTemp, minTemp, originY, isDelta);
+} else {
+    Uart_changeGraphicsLine(vp, values, count, sensor, minX, maxX, minY, maxY, deltaBound, deltaBoundX, maxTemp, minTemp, originY, isDelta);
+}</code>
+   </operation>
+   <statechart properties="0x00">
+    <initial target="../1">
+     <initial_glyph conn="6,2,4,0,2,17,5">
+      <action box="0,-2,10,2"/>
+     </initial_glyph>
+    </initial>
+    <state name="state1">
+     <tran trig="UART_INPUT_TOUCH">
+      <action>UartInputTouchEvt *uev = Q_EVT_CAST(UartInputTouchEvt);
+
+IhmInputTouchEvt *iev = Q_NEW(IhmInputTouchEvt, IHM_INPUT_TOUCH_SIG);
+iev-&gt;length = uev-&gt;length;
+
+QACTIVE_POST(AO_Ihm, &amp;iev-&gt;super, me);</action>
+      <tran_glyph conn="10,20,3,-1,26">
+       <action box="0,-2,20,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="UART_INPUT_SLIDER">
+      <action>UartInputSliderEvt *uev = Q_EVT_CAST(UartInputSliderEvt);
+
+IhmInputSliderEvt *iev = Q_NEW(IhmInputSliderEvt, IHM_INPUT_SLIDER_SIG);
+iev-&gt;control = uev-&gt;control;
+iev-&gt;value = uev-&gt;value;
+
+QACTIVE_POST(AO_Ihm, &amp;iev-&gt;super, me);</action>
+      <tran_glyph conn="10,23,3,-1,26">
+       <action box="0,-2,21,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="UART_OUTPUT_PAGE">
+      <action>UartOutputPageEvt *uev = Q_EVT_CAST(UartOutputPageEvt);
+
+Uart_changePage(uev-&gt;picid);</action>
+      <tran_glyph conn="10,26,3,-1,26">
+       <action box="0,-2,22,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="UART_OUTPUT_ICON">
+      <action>UartOutputIconEvt *uev = Q_EVT_CAST(UartOutputIconEvt);
+
+Uart_changeIcon(uev-&gt;vp, uev-&gt;icon);</action>
+      <tran_glyph conn="10,29,3,-1,26">
+       <action box="0,-2,22,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="UART_OUTPUT_TEXT">
+      <action>UartOutputTextEvt *uev = Q_EVT_CAST(UartOutputTextEvt);
+
+Uart_changeText(uev-&gt;vp, uev-&gt;text);</action>
+      <tran_glyph conn="10,32,3,-1,26">
+       <action box="0,-2,21,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="UART_OUTPUT_CHART">
+      <action>UartOutputChartEvt *uev = Q_EVT_CAST(UartOutputChartEvt);
+
+Uart_changeChart(uev-&gt;vp, uev-&gt;sensor, uev-&gt;values, uev-&gt;count, 
+uev-&gt;minX, uev-&gt;maxX, uev-&gt;minY, uev-&gt;maxY, uev-&gt;deltaBound, uev-&gt;deltaBoundX, uev-&gt;minTemp, uev-&gt;maxTemp, uev-&gt;originY, uev-&gt;isDelta);</action>
+      <tran_glyph conn="10,35,3,-1,26">
+       <action box="0,-2,21,2"/>
+      </tran_glyph>
+     </tran>
+     <state_glyph node="10,9,51,33"/>
+    </state>
+    <state_diagram size="80,50"/>
+   </statechart>
+  </class>
+  <attribute name="AO_Server" type="QActive * const" visibility="0x00" properties="0x00"/>
+  <attribute name="AO_Perif" type="QActive * const" visibility="0x00" properties="0x00"/>
+  <attribute name="AO_Ihm" type="QActive * const" visibility="0x00" properties="0x00"/>
+  <attribute name="AO_DataBroker" type="QActive * const" visibility="0x00" properties="0x00"/>
+  <attribute name="AO_Uart" type="QActive * const" visibility="0x00" properties="0x00"/>
+  <operation name="Uart_ctor" type="void" visibility="0x00" properties="0x00">
+   <code>Uart *me = &amp;l_uart;
+
+uart_config_t uart_config = {
+        .baud_rate = 115200,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+    };
+
+ESP_ERROR_CHECK(uart_driver_install(UART_NUM, BUF_SIZE * 2, BUF_SIZE * 2, 20, &amp;me-&gt;uartQueue, 0));
+ESP_ERROR_CHECK(uart_param_config(UART_NUM, &amp;uart_config));
+ESP_ERROR_CHECK(uart_set_pin(UART_NUM, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+
+xTaskCreate(Uart_uartTask, &quot;UART_TASK&quot;, 2400, NULL, 6, NULL);
+
+ESP_LOGI(TAG, &quot;Created uart task&quot;);
+
+
+
+QActive_ctor(&amp;me-&gt;super, Q_STATE_CAST(&amp;Uart_initial));</code>
+  </operation>
+  <operation name="Ihm_ctor" type="void" visibility="0x00" properties="0x00">
+   <code>Ihm *me = &amp;l_ihm;
+IhmStage *stage = &amp;l_ihmStage;
+IhmSubstage *substage = &amp;l_ihmSubstage;
+
+QActive_ctor(&amp;me-&gt;super, Q_STATE_CAST(&amp;Ihm_initial));
+me-&gt;state.control = (ControlState){
+    .potencia = 0,
+    .cilindro = 0,
+    .turbina = TOGGLE_OFF,
+    .resfriador = TOGGLE_OFF
+};
+
+QHsm_ctor(&amp;stage-&gt;super, Q_STATE_CAST(&amp;IhmStage_initial));
+QHsm_ctor(&amp;substage-&gt;super, Q_STATE_CAST(&amp;IhmSubstage_initial));
+
+QTimeEvt_ctorX(&amp;me-&gt;stageTimerEvt, &amp;me-&gt;super, IHM_STAGE_TIMER_TIMEOUT_SIG, 0U);</code>
+  </operation>
+  <operation name="Perif_ctor" type="void" visibility="0x00" properties="0x00">
+   <code>Perif *me = &amp;l_perif;
+
+QActive_ctor(&amp;me-&gt;super, Q_STATE_CAST(&amp;Perif_initial));
+QTimeEvt_ctorX(&amp;me-&gt;sensorTimeEvt, &amp;me-&gt;super, SENSOR_TIMEOUT_SIG, 0U);
+QTimeEvt_ctorX(&amp;me-&gt;pwmTimeEvt, &amp;me-&gt;super, PWM_TIMEOUT_SIG, 0U);</code>
+  </operation>
+  <operation name="DataBroker_ctor" type="void" visibility="0x00" properties="0x00">
+   <code>DataBroker *me = &amp;l_dataBroker;
+
+QActive_ctor(&amp;me-&gt;super, Q_STATE_CAST(&amp;DataBroker_initial));
+QTimeEvt_ctorX(&amp;me-&gt;recipeTimerEvt, &amp;me-&gt;super, DATA_RECIPE_TIMEOUT_SIG, 0U);</code>
+  </operation>
+ </package>
+ <package name="Events" stereotype="0x01">
+  <class name="UartInputTouchEvt" superclass="qpc::QEvt">
+   <attribute name="length" type="uint8_t" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="IhmInputTouchEvt" superclass="qpc::QEvt">
+   <attribute name="length" type="uint8_t" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="IhmInputSliderEvt" superclass="qpc::QEvt">
+   <attribute name="control" type="ControlType" visibility="0x00" properties="0x00"/>
+   <attribute name="value" type="uint8_t" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="NotifyNextStageEvt" superclass="qpc::QEvt">
+   <attribute name="auto_mode" type="bool" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="RequestNextStageEvt" superclass="qpc::QEvt"/>
+  <class name="UartInputSliderEvt" superclass="qpc::QEvt">
+   <attribute name="control" type="ControlType" visibility="0x00" properties="0x00"/>
+   <attribute name="value" type="uint8_t" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="UartOutputPageEvt" superclass="qpc::QEvt">
+   <attribute name="picid" type="unsigned short int" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="UartOutputIconEvt" superclass="qpc::QEvt">
+   <attribute name="vp" type="unsigned short int" visibility="0x00" properties="0x00"/>
+   <attribute name="icon" type="unsigned short int" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="UartOutputTextEvt" superclass="qpc::QEvt">
+   <attribute name="vp" type="unsigned short int" visibility="0x00" properties="0x00"/>
+   <attribute name="text" type="const char *" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="UartOutputChartEvt" superclass="qpc::QEvt">
+   <attribute name="vp" type="unsigned short int" visibility="0x00" properties="0x00"/>
+   <attribute name="values" type="int *" visibility="0x00" properties="0x00"/>
+   <attribute name="sensor" type="SensorType" visibility="0x00" properties="0x00"/>
+   <attribute name="count" type="unsigned short int" visibility="0x00" properties="0x00"/>
+   <attribute name="minX" type="int" visibility="0x00" properties="0x00"/>
+   <attribute name="maxX" type="int" visibility="0x00" properties="0x00"/>
+   <attribute name="minY" type="int" visibility="0x00" properties="0x00"/>
+   <attribute name="maxY" type="int" visibility="0x00" properties="0x00"/>
+   <attribute name="deltaBound" type="bool" visibility="0x00" properties="0x00"/>
+   <attribute name="deltaBoundX" type="int" visibility="0x00" properties="0x00"/>
+   <attribute name="maxTemp" type="int" visibility="0x00" properties="0x00"/>
+   <attribute name="minTemp" type="int" visibility="0x00" properties="0x00"/>
+   <attribute name="originY" type="int" visibility="0x00" properties="0x00"/>
+   <attribute name="isDelta" type="bool" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="RequestModeEvt" superclass="qpc::QEvt">
+   <attribute name="mode" type="ModeType" visibility="0x00" properties="0x00"/>
+   <attribute name="roast[25]" type="char" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="SensorUpdateEvt" superclass="qpc::QEvt">
+   <attribute name="type" type="SensorType" visibility="0x00" properties="0x00"/>
+   <attribute name="value" type="uint8_t" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="PerifStartEvt" superclass="qpc::QEvt"/>
+  <class name="PerifStopEvt" superclass="qpc::QEvt"/>
+  <class name="ResponseSummaryEvt" superclass="qpc::QEvt">
+   <attribute name="temps_ar" type="int *" visibility="0x00" properties="0x00"/>
+   <attribute name="temps_grao" type="int *" visibility="0x00" properties="0x00"/>
+   <attribute name="temps_count_ar" type="int" visibility="0x00" properties="0x00"/>
+   <attribute name="temps_count_grao" type="int" visibility="0x00" properties="0x00"/>
+   <attribute name="total_time" type="time_t" visibility="0x00" properties="0x00"/>
+   <attribute name="recipe_name" type="const char *" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="RequestSummaryEvt" superclass="qpc::QEvt">
+   <attribute name="temps_ar" type="int *" visibility="0x00" properties="0x00"/>
+   <attribute name="temps_grao" type="int *" visibility="0x00" properties="0x00"/>
+   <attribute name="temps_count_ar" type="int" visibility="0x00" properties="0x00"/>
+   <attribute name="temps_count_grao" type="int" visibility="0x00" properties="0x00"/>
+   <attribute name="total_time" type="time_t" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="UpdateControlEvt" superclass="qpc::QEvt">
+   <attribute name="control" type="ControlType" visibility="0x00" properties="0x00"/>
+   <attribute name="value" type="int" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="ControlDataEvt" superclass="qpc::QEvt">
+   <attribute name="control" type="ControlType" visibility="0x00" properties="0x00"/>
+   <attribute name="payload" type="void *" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="SensorDataEvt" superclass="qpc::QEvt">
+   <attribute name="value" type="int" visibility="0x00" properties="0x00"/>
+   <attribute name="type" type="SensorType" visibility="0x00" properties="0x00"/>
+   <attribute name="delta" type="int" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="RequestRoastsEvt" superclass="qpc::QEvt">
+   <attribute name="pageNum" type="uint8_t" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="ResponseRoastsEvt" superclass="qpc::QEvt">
+   <attribute name="pageNum" type="uint8_t" visibility="0x00" properties="0x00"/>
+   <attribute name="roast1[25]" type="char" visibility="0x00" properties="0x00"/>
+   <attribute name="roast2[25]" type="char" visibility="0x00" properties="0x00"/>
+   <attribute name="roast3[25]" type="char" visibility="0x00" properties="0x00"/>
+   <attribute name="prevPage" type="bool" visibility="0x00" properties="0x00"/>
+   <attribute name="nextPage" type="bool" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="RequestRoastEvt" superclass="qpc::QEvt">
+   <attribute name="roast[25]" type="char" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="ResponseRoastEvt" superclass="qpc::QEvt">
+   <attribute name="roast[25]" type="char" visibility="0x00" properties="0x00"/>
+   <attribute name="sensorData" type="SensorData *" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="RequestTransformRoastEvt" superclass="qpc::QEvt">
+   <attribute name="roast[25]" type="char" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="RequestRecipesEvt" superclass="qpc::QEvt">
+   <attribute name="pageNum" type="uint8_t" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="ResponseRecipesEvt" superclass="qpc::QEvt">
+   <attribute name="pageNum" type="uint8_t" visibility="0x00" properties="0x00"/>
+   <attribute name="roast1[25]" type="char" visibility="0x00" properties="0x00"/>
+   <attribute name="roast2[25]" type="char" visibility="0x00" properties="0x00"/>
+   <attribute name="roast3[25]" type="char" visibility="0x00" properties="0x00"/>
+   <attribute name="prevPage" type="bool" visibility="0x00" properties="0x00"/>
+   <attribute name="nextPage" type="bool" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="RequestRecipeEvt" superclass="qpc::QEvt">
+   <attribute name="roast[25]" type="char" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="ResponseRecipeEvt" superclass="qpc::QEvt">
+   <attribute name="roast[25]" type="char" visibility="0x00" properties="0x00"/>
+   <attribute name="sensorData" type="SensorData *" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="NotifyModeEvt" superclass="qpc::QEvt">
+   <attribute name="mode" type="ModeType" visibility="0x00" properties="0x00"/>
+   <attribute name="roast[25]" type="char" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="SensorGasUpdateEvt" superclass="qpc::QEvt">
+   <attribute name="value" type="int" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="SensorGasDataEvt" superclass="qpc::QEvt">
+   <attribute name="value" type="int" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="NotifyNextSubstageEvt" superclass="qpc::QEvt"/>
+  <class name="RequestNextSubstageEvt" superclass="qpc::QEvt"/>
+  <class name="ChartDataEvt" superclass="qpc::QEvt">
+   <attribute name="sensorData" type="SensorData *" visibility="0x00" properties="0x00"/>
+   <attribute name="type" type="SensorType" visibility="0x00" properties="0x00"/>
+  </class>
+ </package>
+ <package name="Components" stereotype="0x02">
+  <class name="IhmStage" superclass="qpc::QHsm">
+   <attribute name="timer_start" type="time_t" visibility="0x00" properties="0x00"/>
+   <operation name="setTimer" type="void" visibility="0x00" properties="0x00">
+    <parameter name="reset" type="bool"/>
+    <parameter name="visible" type="bool"/>
+    <code>time_t rawtime;
+struct tm *info;
+char buffer[8];
+
+time( &amp;rawtime );
+
+if(reset) {
+    me-&gt;timer_start = rawtime;
+}
+
+if(visible) {
+    time_t elapsed = rawtime-me-&gt;timer_start;
+
+    info = localtime( &amp;elapsed );
+    strftime(buffer,80,&quot;%H:%M:%S&quot;, info);
+
+    postUart_setString(STAGE_TIMER_TEXT_VP, buffer, false);
+} else {
+    postUart_setString(STAGE_TIMER_TEXT_VP, &quot;\0&quot;, false);
+}
+
+</code>
+   </operation>
+   <statechart properties="0x00">
+    <initial target="../1">
+     <initial_glyph conn="11,5,5,3,17,5,6">
+      <action box="0,-2,10,2"/>
+     </initial_glyph>
+    </initial>
+    <state name="idle">
+     <entry>ESP_LOGD(TAG, &quot;[STAGE][IDLE][ENTRY]&quot;);
+
+postUart_setIcon(STAGE_STATUS_ICON_VP, 0);
+postUart_setIcon(STAGE_BTN_ICON_VP, 0);</entry>
+     <exit>ESP_LOGD(TAG, &quot;[STAGE][IDLE][EXIT]&quot;);</exit>
+     <tran trig="NOTIFY_NEXT_STAGE" target="../../2">
+      <tran_glyph conn="58,10,1,3,7">
+       <action box="0,-2,10,2"/>
+      </tran_glyph>
+     </tran>
+     <state_glyph node="34,2,24,13">
+      <entry box="1,2,6,2"/>
+      <exit box="1,4,6,2"/>
+     </state_glyph>
+    </state>
+    <state name="pre_heating">
+     <entry>ESP_LOGD(TAG, &quot;[STAGE][PRE_HEATING][ENTRY]&quot;);
+
+postUart_setIcon(STAGE_STATUS_ICON_VP, 3);
+postUart_setIcon(STAGE_BTN_ICON_VP, 3);</entry>
+     <exit>ESP_LOGD(TAG, &quot;[STAGE][PRE_HEATING][EXIT]&quot;);</exit>
+     <tran trig="NOTIFY_NEXT_STAGE" target="../../3/1">
+      <tran_glyph conn="74,15,2,0,11">
+       <action box="0,-2,10,2"/>
+      </tran_glyph>
+     </tran>
+     <state_glyph node="65,2,23,13">
+      <entry box="1,2,6,2"/>
+      <exit box="1,4,6,2"/>
+     </state_glyph>
+    </state>
+    <state name="timing">
+     <exit>IhmStage_setTimer(me, true, false);</exit>
+     <tran trig="IHM_STAGE_TIMER_TIMEOUT">
+      <action>IhmStage_setTimer(me, false, true);</action>
+      <tran_glyph conn="31,23,3,-1,11">
+       <action box="0,-2,10,2"/>
+      </tran_glyph>
+     </tran>
+     <state name="roasting">
+      <entry>ESP_LOGD(TAG, &quot;[STAGE][ROASTING][ENTRY]&quot;);
+
+postUart_setIcon(STAGE_STATUS_ICON_VP, 2);
+postUart_setIcon(STAGE_BTN_ICON_VP, 2);
+
+IhmStage_setTimer(me, true, true);</entry>
+      <exit>ESP_LOGD(TAG, &quot;[STAGE][ROASTING][EXIT]&quot;);</exit>
+      <tran trig="NOTIFY_NEXT_STAGE" target="../../2">
+       <tran_glyph conn="63,33,3,1,-5">
+        <action box="0,-2,10,2"/>
+       </tran_glyph>
+      </tran>
+      <state_glyph node="63,26,22,13">
+       <entry box="1,2,6,2"/>
+       <exit box="1,4,6,2"/>
+      </state_glyph>
+     </state>
+     <state name="cooling">
+      <entry>ESP_LOGD(TAG, &quot;[STAGE][COOLING][ENTRY]&quot;);
+
+postUart_setIcon(STAGE_STATUS_ICON_VP, 1);
+postUart_setIcon(STAGE_BTN_ICON_VP, 1);
+
+IhmStage_setTimer(me, true, true);</entry>
+      <exit>ESP_LOGD(TAG, &quot;[STAGE][COOLING][EXIT]&quot;);</exit>
+      <tran trig="NOTIFY_NEXT_STAGE" target="../../../4">
+       <tran_glyph conn="34,32,3,1,-2,-2,-6">
+        <action box="0,-2,10,2"/>
+       </tran_glyph>
+      </tran>
+      <state_glyph node="34,26,24,13">
+       <entry box="1,2,6,2"/>
+       <exit box="1,4,6,2"/>
+      </state_glyph>
+     </state>
+     <state_glyph node="31,17,58,23">
+      <exit box="1,2,6,2"/>
+     </state_glyph>
+    </state>
+    <state name="summary">
+     <tran trig="NOTIFY_NEXT_STAGE" target="../../1">
+      <tran_glyph conn="18,24,0,3,-12,16">
+       <action box="0,-2,10,2"/>
+      </tran_glyph>
+     </tran>
+     <state_glyph node="12,24,14,14"/>
+    </state>
+    <state_diagram size="94,41"/>
+   </statechart>
+  </class>
+  <class name="IhmSubstage" superclass="qpc::QHsm">
+   <statechart properties="0x00">
+    <initial target="../1">
+     <initial_glyph conn="11,5,4,3,5,25">
+      <action box="0,-2,10,2"/>
+     </initial_glyph>
+    </initial>
+    <state name="idle">
+     <entry>ESP_LOGD(TAG, &quot;[SUBSTAGE][IDLE][ENTRY]&quot;);
+
+postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 0);</entry>
+     <exit>ESP_LOGD(TAG, &quot;[SUBSTAGE][IDLE][EXIT]&quot;);</exit>
+     <tran trig="NOTIFY_NEXT_SUBSTAGE" target="../../3">
+      <tran_glyph conn="60,11,1,3,7">
+       <action box="0,-2,10,2"/>
+      </tran_glyph>
+     </tran>
+     <state_glyph node="36,3,24,13">
+      <entry box="1,2,6,2"/>
+      <exit box="1,4,6,2"/>
+     </state_glyph>
+    </state>
+    <state name="q1">
+     <entry>ESP_LOGD(TAG, &quot;[SUBSTAGE][Q1][ENTRY]&quot;);
+
+postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 2);</entry>
+     <exit>ESP_LOGD(TAG, &quot;[SUBSTAGE][PRE_HEATING][EXIT]&quot;);</exit>
+     <tran trig="NOTIFY_NEXT_SUBSTAGE" target="../../4">
+      <tran_glyph conn="66,28,3,0,-6">
+       <action box="0,-2,10,2"/>
+      </tran_glyph>
+     </tran>
+     <state_glyph node="66,21,23,13">
+      <entry box="1,2,6,2"/>
+      <exit box="1,4,6,2"/>
+     </state_glyph>
+    </state>
+    <state name="f">
+     <entry>ESP_LOGD(TAG, &quot;[SUBSTAGE][F][ENTRY]&quot;);
+
+postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 1);</entry>
+     <exit>ESP_LOGD(TAG, &quot;[SUBSTAGE][ROASTING][EXIT]&quot;);</exit>
+     <tran trig="NOTIFY_NEXT_SUBSTAGE" target="../../2">
+      <tran_glyph conn="78,16,2,0,5">
+       <action box="0,-2,10,2"/>
+      </tran_glyph>
+     </tran>
+     <state_glyph node="67,3,22,13">
+      <entry box="1,2,6,2"/>
+      <exit box="1,4,6,2"/>
+     </state_glyph>
+    </state>
+    <state name="q2">
+     <entry>ESP_LOGD(TAG, &quot;[SUBSTAGE][Q2][ENTRY]&quot;);
+
+postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 0);</entry>
+     <exit>ESP_LOGD(TAG, &quot;[SUBSTAGE][COOLING][EXIT]&quot;);</exit>
+     <tran trig="NOTIFY_NEXT_SUBSTAGE" target="../../1">
+      <tran_glyph conn="47,21,0,2,-5">
+       <action box="0,-2,10,2"/>
+      </tran_glyph>
+     </tran>
+     <state_glyph node="36,21,24,13">
+      <entry box="1,2,6,2"/>
+      <exit box="1,4,6,2"/>
+     </state_glyph>
+    </state>
+    <state_diagram size="94,41"/>
+   </statechart>
+  </class>
+ </package>
+ <package name="Common" stereotype="0x05">
+  <operation name="postUart_setPage" type="void" visibility="0x01" properties="0x00">
+   <parameter name="picid" type="unsigned short int"/>
+   <code>ESP_LOGD(TAG, &quot;[IHM_UART_SET_PAGE]&quot;);
+
+UartOutputPageEvt *pageEv = Q_NEW(UartOutputPageEvt, UART_OUTPUT_PAGE_SIG);
+pageEv-&gt;picid = picid;
+QACTIVE_POST(AO_Uart, &amp;pageEv-&gt;super, me);</code>
+  </operation>
+  <operation name="postUart_setString" type="void" visibility="0x01" properties="0x01">
+   <parameter name="vp" type="unsigned short int"/>
+   <parameter name="text" type="char *"/>
+   <parameter name="reset" type="bool"/>
+   <code>ESP_LOGD(TAG, &quot;[IHM_UART_SET_STRING]&quot;);
+
+if(reset) {
+    UartOutputTextEvt *resetEv = Q_NEW(UartOutputTextEvt, UART_OUTPUT_TEXT_SIG);
+    resetEv-&gt;vp = vp;
+    resetEv-&gt;text = &quot;\0&quot;;
+    QACTIVE_POST(AO_Uart, &amp;resetEv-&gt;super, me);
+}
+
+UartOutputTextEvt *textEv = Q_NEW(UartOutputTextEvt, UART_OUTPUT_TEXT_SIG);
+textEv-&gt;vp = vp;
+textEv-&gt;text = text;
+QACTIVE_POST(AO_Uart, &amp;textEv-&gt;super, me);
+
+</code>
+  </operation>
+  <operation name="postUart_setIcon" type="void" visibility="0x01" properties="0x01">
+   <parameter name="vp" type="unsigned short int"/>
+   <parameter name="icon" type="unsigned short int"/>
+   <code>ESP_LOGD(TAG, &quot;[IHM_UART_SET_ICON]&quot;);
+
+UartOutputIconEvt *iconEv = Q_NEW(UartOutputIconEvt, UART_OUTPUT_ICON_SIG);
+iconEv-&gt;vp = vp;
+iconEv-&gt;icon = icon;
+QACTIVE_POST(AO_Uart, &amp;iconEv-&gt;super, me);</code>
+  </operation>
+ </package>
+ <directory name=".">
+  <file name="main.c">
+   <text>#include &quot;qpc.h&quot;
+#include &quot;freertos/FreeRTOS.h&quot;
+#include &quot;esp_log.h&quot;
+#include &quot;nvs.h&quot;
+#include &quot;nvs_flash.h&quot;
+#include &quot;server_controller.h&quot;
+#include &quot;common.h&quot;
+
+Q_DEFINE_THIS_FILE
+
+static const char *TAG = &quot;main&quot;;
+
+/*
+ * small event memory pool
+ */
+static QF_MPOOL_EL(QEvt) smallPoolSto[CONFIG_QPC_SMALL_POOL_SIZE];
+
+/*
+ * medium size event memory pool
+ * size: QEvt + CONFIG_QPC_MEDIUM_POOL_ENTRY_SIZE words
+ */
+typedef struct {
+    QEvt super;
+    uint32_t data[CONFIG_QPC_MEDIUM_POOL_ENTRY_SIZE];
+} mediumPool;
+static QF_MPOOL_EL(mediumPool) mediumPoolSto[CONFIG_QPC_MEDIUM_POOL_SIZE];
+
+/*
+ * large size event memory pool
+ * size: QEvt + CONFIG_QPC_LARGE_POOL_ENTRY_SIZE words
+ */
+typedef struct {
+    QEvt super;
+    uint32_t data[CONFIG_QPC_LARGE_POOL_ENTRY_SIZE];
+} largePool;
+static QF_MPOOL_EL(largePool) largePoolSto[CONFIG_QPC_LARGE_POOL_SIZE];
+
+static QEvt const *ihmQueueSto[20];
+static QEvt const *perifQueueSto[20];
+static QEvt const *dataBrokerQueueSto[20];
+static QEvt const *uartQueueSto[20];
+
+static QSubscrList subscrSto[25];
+static StackType_t ihmStack[4096];
+static StackType_t perifStack[4096];
+static StackType_t dataBrokerStack[16384];
+static StackType_t uartStack[4096];
+
+void setup_peripherals();
+void storage_init();
+void server_controller_init();
+
+void app_main() {
+    ESP_LOGI(TAG, &quot;Iniciando NVS&quot;);
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        // NVS partition was truncated and needs to be erased
+        // Retry nvs_flash_init
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(err);
+    ESP_LOGI(TAG, &quot;NVS Ok!&quot;);
+
+    Uart_ctor();
+    Ihm_ctor();
+    Perif_ctor();
+    DataBroker_ctor();
+    setup_peripherals();
+    storage_init();
+    server_controller_init();
+
+    QF_init();
+
+    /* initialize publish-subscribe... */
+    QF_psInit(subscrSto, Q_DIM(subscrSto));
+
+    /* Initialize Event Memory Pool */
+    QF_poolInit(smallPoolSto, sizeof(smallPoolSto), sizeof(smallPoolSto[0]));
+    QF_poolInit(mediumPoolSto, sizeof(mediumPoolSto), sizeof(mediumPoolSto[0]));
+    QF_poolInit(largePoolSto, sizeof(largePoolSto), sizeof(largePoolSto[0]));
+
+   
+
+
+QActive_setAttr(AO_Uart, TASK_NAME_ATTR, &quot;UART&quot;);
+    QACTIVE_START(AO_Uart,             /* AO to start */
+                  (uint_fast8_t)(5),  /* QP priority of the AO */
+                  uartQueueSto,        /* event queue storage */
+                  Q_DIM(uartQueueSto), /* queue length [events] */
+                  uartStack,           /* stack storage */
+                  sizeof(uartStack),   /* stack size [bytes] */
+                  (QEvt *)0);         /* initialization event (not used) */
+
+    
+    QActive_setAttr(AO_Ihm, TASK_NAME_ATTR, &quot;IHM&quot;);
+    QACTIVE_START(AO_Ihm,             /* AO to start */
+                  (uint_fast8_t)(4),  /* QP priority of the AO */
+                  ihmQueueSto,        /* event queue storage */
+                  Q_DIM(ihmQueueSto), /* queue length [events] */
+                  ihmStack,           /* stack storage */
+                  sizeof(ihmStack),   /* stack size [bytes] */
+                  (QEvt *)0);         /* initialization event (not used) */
+
+   
+    QActive_setAttr(AO_Perif, TASK_NAME_ATTR, &quot;PERIF&quot;);
+    QACTIVE_START(AO_Perif,             /* AO to start */
+                  (uint_fast8_t)(3),    /* QP priority of the AO */
+                  perifQueueSto,        /* event queue storage */
+                  Q_DIM(perifQueueSto), /* queue length [events] */
+                  perifStack,           /* stack storage */
+                  sizeof(perifStack),   /* stack size [bytes] */
+                  (QEvt *)0);           /* initialization event (not used) */
+
+ QActive_setAttr(AO_DataBroker, TASK_NAME_ATTR, &quot;DATA_BROKER&quot;);
+    QACTIVE_START(AO_DataBroker,             /* AO to start */
+                  (uint_fast8_t)(2),   /* QP priority of the AO */
+                  dataBrokerQueueSto,        /* event queue storage */
+                  Q_DIM(dataBrokerQueueSto), /* queue length [events] */
+                  dataBrokerStack,           /* stack storage */
+                  sizeof(dataBrokerStack),   /* stack size [bytes] */
+                  (QEvt *)0);          /* initialization event (not used) */
+
+    /* start the active objects... */
+    QF_run();
+
+    ESP_LOGI(TAG, &quot;Goodbye app_main()&quot;);
+}</text>
+  </file>
+  <file name="uart.c">
+   <text>#include &quot;qpc.h&quot;
+#include &lt;string.h&gt;
+#include &quot;driver/uart.h&quot;
+#include &quot;freertos/FreeRTOS.h&quot;
+#include &quot;freertos/queue.h&quot;
+#include &quot;esp_log.h&quot;
+#include &quot;common.h&quot;
+#include &quot;esp_unicviewad.h&quot;
+
+#define TXD_PIN 17
+#define RXD_PIN 16
+#define UART_NUM UART_NUM_2
+
+#define BUF_SIZE (1024)
+#define RD_BUF_SIZE (BUF_SIZE)
+
+#define COLOR_GRAO 54468
+#define COLOR_AR 30000
+
+static const char * TAG = &quot;UART&quot;;
+
+Q_DEFINE_THIS_FILE
+
+$declare(AOs::Uart)
+
+static Uart l_uart; /* a única instância do AO IHM */
+
+QActive * const AO_Uart = &amp;l_uart.super;
+
+$define(AOs::Uart)
+$define(AOs::Uart_ctor)</text>
+  </file>
+  <file name="ihm.c">
+   <text>#include &quot;qpc.h&quot;
+#include &quot;common.h&quot;
+#include &quot;esp_log.h&quot;
+#include &lt;string.h&gt;
+#include &lt;time.h&gt;
+#include &quot;esp_unicviewad.h&quot;
+
+Q_DEFINE_THIS_FILE
+
+#define STAGE_TIMER_TEXT_VP 0
+#define STAGE_STATUS_ICON_VP 0
+#define STAGE_BTN_ICON_VP 0
+#define SUBSTAGE_BTN_ICON_VP 0
+#define MANUAL_MODE_PICID 0
+#define MAIN_MENU_PICID 0
+#define CONTROLS_PICID 0
+#define NAVBAR_TEXT_VP 0
+#define NAVBAR_ICON_HOME_VP 0
+#define NAVBAR_ICON_GEAR_VP 0
+#define SENSOR_GAS_TEXT_VP 0
+#define SENSOR_AR_TEXT_VP 0
+#define DELTA_AR_TEXT_VP 0
+#define SENSOR_GRAO_TEXT_VP 0
+#define DELTA_GRAO_TEXT_VP 0
+#define NEXT_COMMAND_ICON_VP 0
+#define NEXT_COMMAND_TEXT_VP 0
+#define NEXT_COMMAND_TIMER_TEXT_VP 0
+#define CONTROL_POTENCIA_ICON_VP 0
+#define CONTROL_POTENCIA_TEXT_VP 0
+#define CONTROL_CILINDRO_ICON_VP 0
+#define CONTROL_CILINDRO_TEXT_VP 0
+#define CONTROL_RESFRIADOR_ICON_VP 0
+#define CONTROL_TURBINA_ICON_VP 0
+
+static const char * TAG = &quot;IHM&quot;;
+
+$declare(Components::IhmStage)
+$declare(Components::IhmSubstage)
+$declare(AOs::Ihm)
+
+
+static Ihm l_ihm; /* a única instância do AO IHM */
+static IhmStage l_ihmStage; /* a única instância do AO IHM */
+static IhmSubstage l_ihmSubstage; /* a única instância do AO IHM */
+
+#define STAGE_TIMER_INTERVAL  \
+    (QTimeEvtCtr)((1 * CONFIG_FREERTOS_HZ))
+
+QActive * const AO_Ihm = &amp;l_ihm.super;
+
+$define(Components::IhmStage)
+$define(Components::IhmSubstage)
+$define(AOs::Ihm)
+$define(AOs::Ihm_ctor)</text>
+  </file>
+  <file name="perif.c">
+   <text>#include &quot;qpc.h&quot;
+#include &quot;common.h&quot;
+#include &quot;esp_log.h&quot;
+
+Q_DEFINE_THIS_FILE
+
+static const char * TAG = &quot;PERIF&quot;;
+
+
+
+void cilindro_set_on(bool on);
+bool get_resfriador_state();
+void resfriador_set_on(bool on);
+void potencia_set_duty(int value);
+void cilindro_set_duty(int value);
+void turbina_set_duty(int value);
+int sample_sensor_ar();
+int sample_sensor_grao();
+int sample_sensor_gas();
+
+$declare(AOs::Perif)
+
+static Perif l_perif; /* a única instância do AO IHM */
+
+#define SENSOR_INTERVAL  \
+    (QTimeEvtCtr)((5 * CONFIG_FREERTOS_HZ))
+
+#define PWM_CHECK_INTERVAL  \
+    (QTimeEvtCtr)((1 * CONFIG_FREERTOS_HZ))
+
+QActive * const AO_Perif = &amp;l_perif.super;
+
+$define(AOs::Perif)
+$define(AOs::Perif_ctor)</text>
+  </file>
+  <file name="data_broker.c">
+   <text>#include &quot;qpc.h&quot;
+#include &quot;common.h&quot;
+#include &quot;esp_log.h&quot;
+#include &lt;time.h&gt;
+#include &lt;string.h&gt;
+#include &quot;storage.h&quot;
+
+Q_DEFINE_THIS_FILE
+
+static const char * TAG = &quot;DATA_BROKER&quot;;
+
+$declare(AOs::DataBroker)
+
+static DataBroker l_dataBroker; /* a única instância do AO IHM */
+
+QActive * const AO_DataBroker = &amp;l_dataBroker.super;
+
+$define(AOs::DataBroker)
+$define(AOs::DataBroker_ctor)</text>
+  </file>
+  <file name="utils.c"/>
+  <file name="bsp.c">
+   <text>/*$file${.::bsp.c} vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv*/
+/*
+ * Model: fmw-torrador-v2.qm
+ * File:  ${.::bsp.c}
+ *
+ * This code has been generated by QM 5.2.2 &lt;www.state-machine.com/qm&gt;.
+ * DO NOT EDIT THIS FILE MANUALLY. All your changes will be lost.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This generated code is open source software: you can redistribute it under
+ * the terms of the GNU General Public License as published by the Free
+ * Software Foundation.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+ * more details.
+ *
+ * NOTE:
+ * Alternatively, this generated code may be distributed under the terms
+ * of Quantum Leaps commercial licenses, which expressly supersede the GNU
+ * General Public License and are specifically designed for licensees
+ * interested in retaining the proprietary status of their code.
+ *
+ * Contact information:
+ * &lt;www.state-machine.com/licensing&gt;
+ * &lt;info@state-machine.com&gt;
+ */
+/*$endhead${.::bsp.c} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
+/*$file${.::bsp.c} vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv*/
+/*
+ * Model: fmw-torrador-v2.qm
+ * File:  ${.::bsp.c}
+ *
+ * This code has been generated by QM 5.2.2 &lt;www.state-machine.com/qm&gt;.
+ * DO NOT EDIT THIS FILE MANUALLY. All your changes will be lost.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This generated code is open source software: you can redistribute it under
+ * the terms of the GNU General Public License as published by the Free
+ * Software Foundation.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+ * more details.
+ *
+ * NOTE:
+ * Alternatively, this generated code may be distributed under the terms
+ * of Quantum Leaps commercial licenses, which expressly supersede the GNU
+ * General Public License and are specifically designed for licensees
+ * interested in retaining the proprietary status of their code.
+ *
+ * Contact information:
+ * &lt;www.state-machine.com/licensing&gt;
+ * &lt;info@state-machine.com&gt;
+ */
+/*$endhead${.::bsp.c} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
+#include &lt;string.h&gt;
+
+#include &quot;driver/adc.h&quot;
+#include &quot;driver/ledc.h&quot;
+#include &quot;driver/spi_master.h&quot;
+#include &quot;esp_adc_cal.h&quot;
+#include &quot;esp_freertos_hooks.h&quot;
+#include &quot;esp_log.h&quot;
+#include &quot;qf_port.h&quot;
+#include &quot;qpc.h&quot;
+
+#define ADC1_EXAMPLE_CHAN0 ADC1_CHANNEL_6  // GPIO 25!!!!
+#define ADC_EXAMPLE_ATTEN ADC_ATTEN_DB_11
+#define ADC_EXAMPLE_CALI_SCHEME ESP_ADC_CAL_VAL_EFUSE_VREF
+
+#define PIN_PWM_POTENCIA 33
+#define PIN_PWM_CILINDRO 32
+#define PIN_PWM_TURBINA 25
+
+#define PIN_CILINDRO 4
+#define PIN_CILINDRO_EN 21
+#define PIN_RESFRIADOR 27
+
+#define HOST VSPI_HOST
+
+#define PIN_NUM_MISO 18
+#define PIN_NUM_CLK 19
+#define PIN_CS_AR 5
+#define PIN_CS_GRAO 15
+
+#define LEDC_MODE LEDC_HIGH_SPEED_MODE
+#define LEDC_TIMER LEDC_TIMER_0
+
+#define LEDC_POTENCIA_GPIO (PIN_PWM_POTENCIA)
+#define LEDC_POTENCIA_CHANNEL LEDC_CHANNEL_0
+
+#define LEDC_CILINDRO_GPIO (PIN_PWM_CILINDRO)
+#define LEDC_CILINDRO_CHANNEL LEDC_CHANNEL_1
+
+#define LEDC_TURBINA_GPIO (PIN_PWM_TURBINA)
+#define LEDC_TURBINA_CHANNEL LEDC_CHANNEL_2
+
+#define GPIO_OUTPUT_SEL ((1ULL &lt;&lt; PIN_CILINDRO) | (1ULL &lt;&lt; PIN_RESFRIADOR) | (1ULL &lt;&lt; PIN_CILINDRO_EN))
+
+Q_DEFINE_THIS_FILE
+
+static const char* TAG = &quot;bsp&quot;;
+
+static bool is_cilindro_on = false;
+static bool is_resfriador_on = false;
+
+static esp_adc_cal_characteristics_t adc1_chars;
+static spi_device_handle_t sensor_ar;
+static spi_device_handle_t sensor_grao;
+
+void cilindro_set_on(bool on);
+void resfriador_set_on(bool on);
+
+int_t qf_run_active = 0;
+
+static IRAM_ATTR void freertos_tick_hook(void) {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    if (qf_run_active != 0) {
+        /* process time events for rate 0 */
+        QTIMEEVT_TICK_FROM_ISR(0U, &amp;xHigherPriorityTaskWoken, &amp;freertos_tick_hook);
+        /* notify FreeRTOS to perform context switch from ISR, if needed */
+        if (xHigherPriorityTaskWoken) {
+            portYIELD_FROM_ISR();
+        }
+    }
+}
+
+void QF_onStartup(void) {
+    esp_register_freertos_tick_hook_for_cpu(freertos_tick_hook, QPC_CPU_NUM);
+
+    /* enable QF ticks from tick hook */
+    qf_run_active = 100;
+
+    ESP_LOGI(TAG, &quot;QF started.&quot;);
+
+    /* Note: Additional hook stuff can be placed here */
+}
+
+IRAM_ATTR void Q_onAssert(char_t const* const module, int_t location) {
+    // ESP_LOGE(TAG, &quot;Q_onAssert: module:%s loc:%d\n&quot;, module, location);
+}
+
+static bool adc_calibration_init(void) {
+    esp_err_t ret;
+    bool cali_enable = false;
+
+    ret = esp_adc_cal_check_efuse(ADC_EXAMPLE_CALI_SCHEME);
+    if (ret == ESP_ERR_NOT_SUPPORTED) {
+        ESP_LOGW(TAG, &quot;Calibration scheme not supported, skip software calibration&quot;);
+    } else if (ret == ESP_ERR_INVALID_VERSION) {
+        ESP_LOGW(TAG, &quot;eFuse not burnt, skip software calibration&quot;);
+    } else if (ret == ESP_OK) {
+        cali_enable = true;
+        esp_adc_cal_characterize(ADC_UNIT_1, ADC_EXAMPLE_ATTEN, ADC_WIDTH_BIT_DEFAULT, 0, &amp;adc1_chars);
+    } else {
+        ESP_LOGE(TAG, &quot;Invalid arg&quot;);
+    }
+
+    return cali_enable;
+}
+
+void setup_peripherals() {
+    ledc_timer_config_t ledc_timer = {
+        .duty_resolution = LEDC_TIMER_13_BIT,  // resolution of PWM duty
+        .freq_hz = 5000,                       // frequency of PWM signal
+        .speed_mode = LEDC_MODE,               // timer mode
+        .timer_num = LEDC_TIMER,               // timer index
+        .clk_cfg = LEDC_AUTO_CLK,              // Auto select the source clock
+    };
+
+    ledc_timer_config(&amp;ledc_timer);
+
+    /*
+     * Prepare individual configuration
+     * for each channel of LED Controller
+     * by selecting:
+     * - controller's channel number
+     * - output duty cycle, set initially to 0
+     * - GPIO number where LED is connected to
+     * - speed mode, either high or low
+     * - timer servicing selected channel
+     *   Note: if different channels use one timer,
+     *         then frequency and bit_num of these channels
+     *         will be the same
+     */
+
+    ledc_channel_config_t ledc_channel[3] = {
+        {.gpio_num = LEDC_POTENCIA_GPIO,
+         .speed_mode = LEDC_MODE,
+         .channel = LEDC_POTENCIA_CHANNEL,
+         .timer_sel = LEDC_TIMER,
+         .duty = 0,
+         .hpoint = 0,
+         .flags.output_invert = 0},
+        {.gpio_num = LEDC_CILINDRO_GPIO,
+         .speed_mode = LEDC_MODE,
+         .channel = LEDC_CILINDRO_CHANNEL,
+         .timer_sel = LEDC_TIMER,
+         .duty = 0,
+         .hpoint = 0,
+         .flags.output_invert = 1},
+        {.gpio_num = LEDC_TURBINA_GPIO,
+         .speed_mode = LEDC_MODE,
+         .channel = LEDC_TURBINA_CHANNEL,
+         .timer_sel = LEDC_TIMER,
+         .duty = 0,
+         .hpoint = 0,
+         .flags.output_invert = 1},
+    };
+
+    ledc_channel_config(&amp;ledc_channel[0]);  // Potencia
+    ledc_channel_config(&amp;ledc_channel[1]);  // Cilindro
+    ledc_channel_config(&amp;ledc_channel[2]);  // Turbina
+
+    spi_bus_config_t bus_cfg = {
+        .miso_io_num = PIN_NUM_MISO,
+        .mosi_io_num = -1,
+        .sclk_io_num = PIN_NUM_CLK,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+        .max_transfer_sz = (4 * 8),
+    };
+
+    esp_err_t ret = spi_bus_initialize(HOST, &amp;bus_cfg, SPI_DMA_CH2);
+    ESP_ERROR_CHECK(ret);
+
+    spi_device_interface_config_t dev_cfg = {
+        .mode = 1,
+        .clock_speed_hz = 2 * 1000 * 1000,
+        .spics_io_num = PIN_CS_AR,
+        .queue_size = 1,
+    };
+
+    ret = spi_bus_add_device(HOST, &amp;dev_cfg, &amp;sensor_ar);
+    ESP_ERROR_CHECK(ret);
+
+    spi_device_interface_config_t dev_cfg2 = {
+        .mode = 1,
+        .clock_speed_hz = 2 * 1000 * 1000,
+        .spics_io_num = PIN_CS_GRAO,
+        .queue_size = 1,
+    };
+    ret = spi_bus_add_device(HOST, &amp;dev_cfg2, &amp;sensor_grao);
+    ESP_ERROR_CHECK(ret);
+
+    gpio_config_t io_conf = {};
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = GPIO_OUTPUT_SEL;
+    io_conf.pull_down_en = 0;
+    io_conf.pull_up_en = 0;
+    gpio_config(&amp;io_conf);
+
+    adc_calibration_init();
+
+    ESP_ERROR_CHECK(adc1_config_width(ADC_WIDTH_BIT_DEFAULT));
+    ESP_ERROR_CHECK(adc1_config_channel_atten(ADC1_EXAMPLE_CHAN0, ADC_EXAMPLE_ATTEN));
+
+    cilindro_set_on(false);
+    resfriador_set_on(false);
+}
+
+static uint32_t percentage_to_duty(int value) {
+    const uint32_t in_min = 0, out_min = 0;
+    const uint32_t in_max = 100, out_max = 8191;
+
+    if (value &lt; 0)
+        value = 0;
+    else if (value &gt; 100)
+        value = 100;
+
+    uint32_t duty = (uint32_t)value;
+    return (duty - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+void cilindro_set_on(bool on) {
+    if (on) {
+        gpio_set_level(PIN_CILINDRO, 1);
+        gpio_set_level(PIN_CILINDRO_EN, 1);
+        is_cilindro_on = true;
+    } else {
+        gpio_set_level(PIN_CILINDRO, 0);
+        gpio_set_level(PIN_CILINDRO_EN, 0);
+        is_cilindro_on = false;
+    }
+}
+
+bool get_resfriador_state() {
+    return is_resfriador_on;
+}
+
+void resfriador_set_on(bool on) {
+    if (on) {
+        gpio_set_level(PIN_RESFRIADOR, 0);
+        is_resfriador_on = true;
+    } else {
+        gpio_set_level(PIN_RESFRIADOR, 1);
+        is_resfriador_on = false;
+    }
+}
+
+void potencia_set_duty(int value) {
+    ESP_LOGD(TAG, &quot;[POTÊNCIA DUTY]: %d&quot;, value);
+    uint32_t duty = percentage_to_duty(value);
+
+    ledc_set_duty(LEDC_MODE, LEDC_POTENCIA_CHANNEL, duty);
+    ledc_update_duty(LEDC_MODE, LEDC_POTENCIA_CHANNEL);
+}
+
+void cilindro_set_duty(int value) {
+    ESP_LOGD(TAG, &quot;[CILINDRO DUTY]: %d&quot;, value);
+    uint32_t duty = percentage_to_duty(value);
+
+    if (value &gt; 0 &amp;&amp; !is_cilindro_on) {
+        cilindro_set_on(true);
+        ESP_LOGD(TAG, &quot;[CILINDRO]: ON&quot;);
+    } else if (value == 0 &amp;&amp; is_cilindro_on) {
+        cilindro_set_on(false);
+        ESP_LOGD(TAG, &quot;[CILINDRO]: OFF&quot;);
+    }
+
+    ledc_set_duty(LEDC_MODE, LEDC_CILINDRO_CHANNEL, duty);
+    ledc_update_duty(LEDC_MODE, LEDC_CILINDRO_CHANNEL);
+}
+
+void turbina_set_duty(int value) {
+    ESP_LOGD(TAG, &quot;[TURBINA DUTY]: %d&quot;, value);
+    uint32_t duty = percentage_to_duty(value);
+
+    ledc_set_duty(LEDC_MODE, LEDC_TURBINA_CHANNEL, duty);
+    ledc_update_duty(LEDC_MODE, LEDC_TURBINA_CHANNEL);
+}
+
+float sample_sensor(spi_device_handle_t* dev) {
+    uint16_t data;
+    spi_transaction_t trans = {
+        .tx_buffer = NULL,
+        .rx_buffer = &amp;data,
+        .length = 16,
+        .rxlength = 16,
+    };
+
+    esp_err_t ret = spi_device_polling_transmit(*dev, &amp;trans);
+    // ESP_ERROR_CHECK(ret);
+
+    int16_t res = (int16_t)SPI_SWAP_DATA_RX(data, 16);
+
+    if (res &amp; (1 &lt;&lt; 2)) {
+        // ESP_LOGE(&quot;oi&quot;, &quot;Sensor is not connected\n&quot;);
+        return 0;
+    } else {
+        res &gt;&gt;= 3;
+        // printf(&quot;SPI res = %d temp=%f\n&quot;, res, res * 0.25);
+        return (res * 0.25);
+    }
+
+    return 0;
+}
+
+int sample_sensor_ar() {
+    float temperature = 0;
+
+    temperature = sample_sensor(&amp;sensor_ar);
+    // if (temperature == 0)
+    //     ESP_LOGE(TAG, &quot;Algo errado AR&quot;);
+    // else
+    //     ESP_LOGE(TAG, &quot;Temp ar: %f&quot;, temperature);
+
+    if (temperature &lt; 0) temperature = 0;
+    return temperature;
+}
+
+int sample_sensor_grao() {
+    float temperature = 0;
+
+    temperature = sample_sensor(&amp;sensor_grao);
+    if (temperature == 0)
+        ESP_LOGE(TAG, &quot;Algo errado GRAO&quot;);
+    else
+        ESP_LOGE(TAG, &quot;Temp grao: %f&quot;, temperature);
+
+    if (temperature &lt; 0) temperature = 0;
+    return temperature;
+}
+
+int sample_sensor_gas() {
+    int adc_raw = 0;
+
+    for (int i = 0; i &lt; 24; i++) {
+        adc_raw += adc1_get_raw(ADC1_EXAMPLE_CHAN0);
+    }
+
+    return adc_raw / 24;
+}
+</text>
+  </file>
+ </directory>
+ <directory name="..">
+  <directory name="components">
+   <directory name="common">
+    <directory name="include">
+     <file name="common.h">
+      <text>#ifndef COMMON_H
+#define COMMON_H
+
+#include &quot;qpc.h&quot;
+#include &quot;esp_log.h&quot;
+
+enum Signals {
+    UART_INPUT_TOUCH_SIG = Q_USER_SIG, /* the new request signal */
+    UART_INPUT_SLIDER_SIG,
+    UART_OUTPUT_PAGE_SIG,
+    UART_OUTPUT_ICON_SIG,
+    UART_OUTPUT_TEXT_SIG,
+    UART_OUTPUT_CHART_SIG,
+
+    IHM_INPUT_TOUCH_SIG,
+    IHM_INPUT_SLIDER_SIG,
+    IHM_STAGE_TIMER_TIMEOUT_SIG,
+
+    REQUEST_NEXT_STAGE_SIG,
+    NOTIFY_NEXT_STAGE_SIG,
+    REQUEST_NEXT_SUBSTAGE_SIG,
+    NOTIFY_NEXT_SUBSTAGE_SIG,
+
+    PWM_TIMEOUT_SIG,
+    SENSOR_TIMEOUT_SIG,
+
+    REQUEST_RECIPES_SIG,
+    RESPONSE_RECIPES_SIG,
+    REQUEST_RECIPE_SIG,
+    RESPONSE_RECIPE_SIG,
+
+    REQUEST_ROASTS_SIG,
+    REQUEST_ROAST_SIG,
+    RESPONSE_ROASTS_SIG,
+    RESPONSE_ROAST_SIG,
+
+    REQUEST_MODE_SIG,
+    NOTIFY_MODE_SIG,
+
+    SENSOR_UPDATE_SIG,
+    SENSOR_GAS_UPDATE_SIG,
+    SENSOR_DATA_SIG,
+    SENSOR_GAS_DATA_SIG,
+    CHART_DATA_SIG,
+
+    UPDATE_CONTROL_SIG,
+    CONTROL_DATA_SIG,
+
+    REQUEST_TRANSFORM_ROAST_SIG,
+    DATA_RECIPE_TIMEOUT_SIG,
+
+    REQUEST_SUMMARY_SIG,
+    RESPONSE_SUMMARY_SIG,
+};
+
+typedef enum ControlType {
+    CONTROL_NONE,
+    POTENCIA,
+    CILINDRO,
+    TURBINA,
+    RESFRIADOR,
+} ControlType;
+
+typedef enum SensorTypeTag {
+    SENSOR_AR,
+    SENSOR_GRAO,
+    SENSOR_GAS
+} SensorType;
+
+typedef enum PageTypeTag {
+    PAGE_MAIN_MENU,
+    PAGE_MANUAL_MODE,
+    PAGE_RECIPES,
+    PAGE_RECIPE,
+    PAGE_ROASTS,
+    PAGE_ROAST,
+} PageType;
+
+typedef enum ModeTypeTag {
+    MODE_NONE,
+    MODE_MANUAL,
+    MODE_AUTO
+} ModeType;
+
+typedef enum StageTypeTag {
+    IDLE,
+    PRE_HEAT,
+    ROAST,
+    COOL,
+    SUMMARY,
+} StageType;
+
+typedef struct ModeDataTag {
+    ModeType mode;
+    char roast[25];
+} ModeData;
+
+typedef struct SensorDataTag {
+    int temps_grao[31];
+    int temps_ar[31];
+    int deltas_grao[31];
+    int deltas_ar[31];
+    int temps_grao_count;
+    int temps_ar_count;
+
+    int max_temp;
+    int min_temp;
+    int max_temp_delta;
+    int min_temp_delta;
+} SensorData;
+
+typedef struct RoastsResponseTag {
+    uint8_t pageNum;
+    char roast1[25];
+    char roast2[25];
+    char roast3[25];
+    bool prevPage;
+    bool nextPage;
+} RoastsResponse;
+
+typedef struct RoastResponseTag {
+    char roast[25];
+    SensorData *sensorData;
+} RoastResponse;
+
+typedef struct RecipesResponseTag {
+    uint8_t pageNum;
+    char roast1[25];
+    char roast2[25];
+    char roast3[25];
+    bool prevPage;
+    bool nextPage;
+} RecipesResponse;
+
+typedef struct RecipeResponseTag {
+    char roast[25];
+    SensorData *sensorData;
+} RecipeResponse;
+
+typedef struct RecipeCommandsTag {
+    time_t intervals[100];
+    ControlType controls[100];
+    int values[100];
+    int count;
+} RecipeCommands;
+
+typedef enum ControlToggleTag {
+    TOGGLE_OFF,
+    TOGGLE_SEVENTY,
+    TOGGLE_EIGHTY,
+    TOGGLE_NINETY,
+    TOGGLE_MAX,
+} ControlToggle;
+
+typedef struct ControlStateTag {
+    int potencia;
+    int cilindro;
+    ControlToggle turbina;
+    ControlToggle resfriador;
+} ControlState;
+
+typedef struct IhmStateTag {
+    ControlState control;
+} IhmState;
+
+$declare${Events}
+
+$declare(AOs::Ihm_ctor)
+$declare(AOs::Perif_ctor)
+$declare(AOs::DataBroker_ctor)
+$declare(AOs::Uart_ctor)
+
+$declare(AOs::AO_Ihm)
+$declare(AOs::AO_Perif)
+$declare(AOs::AO_DataBroker)
+$declare(AOs::AO_Uart)
+
+$declare(Common)
+
+#endif</text>
+     </file>
+    </directory>
+    <file name="common.c">
+     <text>#include &quot;common.h&quot;
+
+Q_DEFINE_THIS_FILE
+
+static const char *TAG = &quot;COMMON&quot;;
+
+$define(Common)</text>
+    </file>
+   </directory>
+  </directory>
+ </directory>
+</model>
