@@ -29,6 +29,7 @@
 */
 /*$endhead${..::components::common::common.c} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
 #include "common.h"
+#include <string.h>
 
 Q_DEFINE_THIS_FILE
 
@@ -56,14 +57,21 @@ void postUart_setPage(unsigned short int picid) {
 void postUart_setString(
     unsigned short int vp,
     char * text,
-    bool reset)
+    bool reset,
+    size_t reset_len)
 {
     ESP_LOGD(TAG, "[IHM_UART_SET_STRING]");
 
     if(reset) {
+        char resetStr[100] = {0};
+        int i;
+        for(i=0; i<reset_len; i++)
+            strcpy(&resetStr[i], " ");
+        strcpy(&resetStr[++i],"\0");
+
         UartOutputTextEvt *resetEv = Q_NEW(UartOutputTextEvt, UART_OUTPUT_TEXT_SIG);
         resetEv->vp = vp;
-        resetEv->text = "\0";
+        resetEv->text = resetStr;
         QACTIVE_POST(AO_Uart, &resetEv->super, me);
     }
 

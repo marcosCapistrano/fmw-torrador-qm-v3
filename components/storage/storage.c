@@ -112,15 +112,17 @@ void storage_add_roast_control_record(time_t total_time, ControlType type, void 
     fclose(f);
 }
 
-void storage_add_roast_sensor_record(time_t total_time, SensorType type, int temp) {
+void storage_add_roast_sensor_record(time_t total_time, SensorType type, int value) {
     char path[100] = {0};
     sprintf(path, "/storage/roasts/%u", roast_number);
 
     FILE *f = fopen(path, "a");
     if (type == SENSOR_GRAO) {
-        fprintf(f, "%ld,SENSOR_GRAO,%d\n", total_time, temp);
+        fprintf(f, "%ld,SENSOR_GRAO,%d\n", total_time, value);
     } else if (type == SENSOR_AR) {
-        fprintf(f, "%ld,SENSOR_AR,%d\n", total_time, temp);
+        fprintf(f, "%ld,SENSOR_AR,%d\n", total_time, value);
+    } else if (type == SENSOR_GAS) {
+        fprintf(f, "%ld,GAS,%d\n", total_time, value);
     }
 
     fclose(f);
@@ -141,15 +143,6 @@ void storage_add_roast_cooler_record(time_t total_time, int temp_grao) {
 
     FILE *f = fopen(path, "a");
     fprintf(f, "%ld,COOLER,%d\n", total_time, temp_grao);
-    fclose(f);
-}
-
-void storage_add_roast_gas_record(time_t total_time, int value) {
-    char path[100] = {0};
-    sprintf(path, "/storage/roasts/%u", roast_number);
-
-    FILE *f = fopen(path, "a");
-    fprintf(f, "%ld,GAS,%d\n", total_time, value);
     fclose(f);
 }
 
@@ -525,19 +518,19 @@ int storage_get_recipe_commands(char *recipe, RecipeCommands *commands) {
         if (type == ENTRY_CONTROL_CILINDRO) {
             commands->intervals[count] = interval;
             commands->controls[count] = CILINDRO;
-            commands->values[count] = value; 
+            commands->values[count] = value;
 
             count++;
-        } else if(type == ENTRY_CONTROL_POTENCIA) {
+        } else if (type == ENTRY_CONTROL_POTENCIA) {
             commands->intervals[count] = interval;
             commands->controls[count] = POTENCIA;
-            commands->values[count] = value; 
+            commands->values[count] = value;
 
             count++;
-        } else if(type == ENTRY_CONTROL_TURBINA) {
+        } else if (type == ENTRY_CONTROL_TURBINA) {
             commands->intervals[count] = interval;
             commands->controls[count] = TURBINA;
-            commands->values[count] = value; 
+            commands->values[count] = value;
 
             count++;
         }

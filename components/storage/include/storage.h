@@ -10,7 +10,6 @@ int storage_get_roast(char *roast, RoastResponse *res);
 int storage_get_recipes_page(uint8_t pageNum, RecipesResponse *res);
 int storage_get_recipe(char *roast, RecipeResponse *res);
 void storage_add_roast_control_record(time_t total_time, ControlType type, void *payload);
-void storage_add_roast_gas_record(time_t total_time, int value);
 void storage_transform_roast(char *roast);
 int storage_get_recipe_commands(char *recipe, RecipeCommands *commands);
 void storage_init();

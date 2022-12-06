@@ -76,7 +76,7 @@ static QState Perif_summary(Perif * const me, QEvt const * const e);
 static Perif l_perif; /* a única instância do AO IHM */
 
 #define SENSOR_INTERVAL  \
-    (QTimeEvtCtr)((5 * CONFIG_FREERTOS_HZ))
+    (QTimeEvtCtr)((1 * CONFIG_FREERTOS_HZ))
 
 #define PWM_CHECK_INTERVAL  \
     (QTimeEvtCtr)((1 * CONFIG_FREERTOS_HZ))
@@ -126,15 +126,15 @@ static QState Perif_sensoring(Perif * const me, QEvt const * const e) {
             int gas = sample_sensor_gas();
             int temp_grao = sample_sensor_grao();
 
-            ESP_LOGE(TAG, "gas here: %d", gas);
+            //ESP_LOGE(TAG, "gas here: %d", gas);
 
-            if(temp_grao > 0) {
+            //if(temp_grao > 0) {
             SensorUpdateEvt *sde_gr;
             sde_gr = Q_NEW(SensorUpdateEvt, SENSOR_UPDATE_SIG);
             sde_gr->type = SENSOR_GRAO;
             sde_gr->value = temp_grao;
             QACTIVE_POST(AO_DataBroker, &sde_gr->super, me);
-            }
+            //}
 
             if(temp_ar > 0) {
             SensorUpdateEvt *sde_ar;
@@ -145,13 +145,14 @@ static QState Perif_sensoring(Perif * const me, QEvt const * const e) {
             }
 
             if(gas > 0) {
-            SensorGasUpdateEvt *sgue = Q_NEW(SensorGasUpdateEvt, SENSOR_GAS_UPDATE_SIG);
-            sgue->value = gas;
-            QACTIVE_POST(AO_DataBroker, &sgue->super, me);
+            SensorUpdateEvt *sde_gas;
+            sde_gas = Q_NEW(SensorUpdateEvt, SENSOR_UPDATE_SIG);
+            sde_gas->type = SENSOR_GAS;
+            sde_gas->value = temp_grao;
+            QACTIVE_POST(AO_DataBroker, &sde_gas->super, me);
             }
 
-            QTimeEvt_disarm(&me->sensorTimeEvt);
-            QTimeEvt_armX(&me->sensorTimeEvt, SENSOR_INTERVAL, 0U);
+            QTimeEvt_rearm(&me->sensorTimeEvt, SENSOR_INTERVAL);
             status_ = Q_HANDLED();
             break;
         }

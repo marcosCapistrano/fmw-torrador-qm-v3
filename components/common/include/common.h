@@ -384,8 +384,8 @@ typedef struct {
     QEvt super;
 
 /* public: */
-    int value;
     SensorType type;
+    int value;
     int delta;
 } SensorDataEvt;
 
@@ -492,24 +492,6 @@ typedef struct {
     char roast[25];
 } NotifyModeEvt;
 
-/*${Events::SensorGasUpdateEvt} ............................................*/
-typedef struct {
-/* protected: */
-    QEvt super;
-
-/* public: */
-    int value;
-} SensorGasUpdateEvt;
-
-/*${Events::SensorGasDataEvt} ..............................................*/
-typedef struct {
-/* protected: */
-    QEvt super;
-
-/* public: */
-    int value;
-} SensorGasDataEvt;
-
 /*${Events::NotifyNextSubstageEvt} .........................................*/
 typedef struct {
 /* protected: */
@@ -584,7 +566,8 @@ void postUart_setPage(unsigned short int picid);
 void postUart_setString(
     unsigned short int vp,
     char * text,
-    bool reset);
+    bool reset,
+    size_t reset_len);
 
 /*${Common::postUart_setIcon} ..............................................*/
 void postUart_setIcon(

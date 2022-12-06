@@ -115,8 +115,8 @@
 
 #define PIN_NUM_MISO 18
 #define PIN_NUM_CLK 19
-#define PIN_CS_AR 5
-#define PIN_CS_GRAO 15
+#define PIN_CS_AR 15
+#define PIN_CS_GRAO 5
 
 #define LEDC_MODE LEDC_HIGH_SPEED_MODE
 #define LEDC_TIMER LEDC_TIMER_0
@@ -254,25 +254,41 @@ void setup_peripherals() {
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
         .max_transfer_sz = (4 * 8),
+        .flags = SPICOMMON_BUSFLAG_MASTER,
     };
 
     esp_err_t ret = spi_bus_initialize(HOST, &bus_cfg, SPI_DMA_CH2);
     ESP_ERROR_CHECK(ret);
 
     spi_device_interface_config_t dev_cfg = {
+        .command_bits = 0,
+        .address_bits = 0,
+        .dummy_bits = 0,
         .mode = 1,
-        .clock_speed_hz = 2 * 1000 * 1000,
+        .duty_cycle_pos = 0,
+        .cs_ena_pretrans = 0,
+        .cs_ena_posttrans = 0,
+        .clock_speed_hz = 4300000,
+        .input_delay_ns = 100,
         .spics_io_num = PIN_CS_AR,
+        // .flags = SPI_DEVICE_NO_DUMMY,
         .queue_size = 1,
     };
-
     ret = spi_bus_add_device(HOST, &dev_cfg, &sensor_ar);
     ESP_ERROR_CHECK(ret);
 
     spi_device_interface_config_t dev_cfg2 = {
+        .command_bits = 0,
+        .address_bits = 0,
+        .dummy_bits = 0,
         .mode = 1,
-        .clock_speed_hz = 2 * 1000 * 1000,
+        .duty_cycle_pos = 0,
+        .cs_ena_pretrans = 0,
+        .cs_ena_posttrans = 0,
+        .clock_speed_hz = 4300000,
+        .input_delay_ns = 100,
         .spics_io_num = PIN_CS_GRAO,
+        // .flags = SPI_DEVICE_NO_DUMMY,
         .queue_size = 1,
     };
     ret = spi_bus_add_device(HOST, &dev_cfg2, &sensor_grao);
@@ -409,11 +425,12 @@ int sample_sensor_grao() {
     float temperature = 0;
 
     temperature = sample_sensor(&sensor_grao);
+    /*
     if (temperature == 0)
         ESP_LOGE(TAG, "Algo errado GRAO");
     else
         ESP_LOGE(TAG, "Temp grao: %f", temperature);
-
+    */
     if (temperature < 0) temperature = 0;
     return temperature;
 }

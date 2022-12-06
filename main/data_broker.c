@@ -501,25 +501,13 @@ static QState DataBroker_pre_heating(DataBroker * const me, QEvt const * const e
                 me->pre_heat_value = sensorEv->value;
             }
 
-            /*
-            DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, &DataBroker_sensorData, false);
+            //DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, &DataBroker_sensorData, false);
             SensorDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_DATA_SIG);
-            sensorDataEv->sensorData = &DataBroker_sensorData;
             sensorDataEv->type = sensorEv->type;
-
-            QACTIVE_POST(AO_Ihm, sensorDataEv, me);
-            */
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::DataBroker::SM::active_mode::pre_heating::SENSOR_GAS_UPDATE} */
-        case SENSOR_GAS_UPDATE_SIG: {
-            SensorGasUpdateEvt *sensorEv = Q_EVT_CAST(SensorGasUpdateEvt);
-
-            SensorGasDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_GAS_DATA_SIG);
             sensorDataEv->value = sensorEv->value;
-
+            sensorDataEv->delta = 0;
             QACTIVE_POST(AO_Ihm, sensorDataEv, me);
+
             status_ = Q_HANDLED();
             break;
         }
@@ -629,14 +617,12 @@ static QState DataBroker_roasting(DataBroker * const me, QEvt const * const e) {
                 me->cooler_value = sensorEv->value;
             }
 
-            /*
-            DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, &DataBroker_sensorData, true);
+            //DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, &DataBroker_sensorData, false);
             SensorDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_DATA_SIG);
-            sensorDataEv->sensorData = &DataBroker_sensorData;
             sensorDataEv->type = sensorEv->type;
-
+            sensorDataEv->value = sensorEv->value;
+            sensorDataEv->delta = 0;
             QACTIVE_POST(AO_Ihm, sensorDataEv, me);
-            */
 
             time_t time_now;
             time(&time_now);
@@ -656,23 +642,6 @@ static QState DataBroker_roasting(DataBroker * const me, QEvt const * const e) {
 
             time_t time_elapsed = time_now - me->time_start;
             storage_add_roast_control_record(time_elapsed, contEv->control, contEv->payload);
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::DataBroker::SM::active_mode::roasting::SENSOR_GAS_UPDATE} */
-        case SENSOR_GAS_UPDATE_SIG: {
-            SensorGasUpdateEvt *sensorEv = Q_EVT_CAST(SensorGasUpdateEvt);
-
-            SensorGasDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_GAS_DATA_SIG);
-            sensorDataEv->value = sensorEv->value;
-
-            QACTIVE_POST(AO_Ihm, sensorDataEv, me);
-
-            time_t time_now;
-            time(&time_now);
-
-            time_t time_elapsed = time_now - me->time_start;
-            storage_add_roast_gas_record(time_elapsed, sensorEv->value);
             status_ = Q_HANDLED();
             break;
         }
@@ -827,14 +796,11 @@ static QState DataBroker_cooling(DataBroker * const me, QEvt const * const e) {
         case SENSOR_UPDATE_SIG: {
             SensorUpdateEvt *sensorEv = Q_EVT_CAST(SensorUpdateEvt);
 
-            /*
-            DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, &DataBroker_sensorData, true);
+            //DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, &DataBroker_sensorData, false);
             SensorDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_DATA_SIG);
-            sensorDataEv->sensorData = &DataBroker_sensorData;
             sensorDataEv->type = sensorEv->type;
-
+            sensorDataEv->value = sensorEv->value;
             QACTIVE_POST(AO_Ihm, sensorDataEv, me);
-            */
 
             time_t time_now;
             time(&time_now);
@@ -1094,16 +1060,12 @@ static QState DataBroker_sensoring(DataBroker * const me, QEvt const * const e) 
         case SENSOR_UPDATE_SIG: {
             SensorUpdateEvt *sensorEv = Q_EVT_CAST(SensorUpdateEvt);
 
-            DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, &DataBroker_sensorData, false);
-
-            /*
+            //DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, &DataBroker_sensorData, false);
             SensorDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_DATA_SIG);
-            sensorDataEv->sensorData = &DataBroker_sensorData;
             sensorDataEv->type = sensorEv->type;
-
+            sensorDataEv->value = sensorEv->value;
+            sensorDataEv->delta = 0;
             QACTIVE_POST(AO_Ihm, sensorDataEv, me);
-
-            */
             status_ = Q_HANDLED();
             break;
         }
