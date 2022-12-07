@@ -36,6 +36,7 @@
 #include "esp_log.h"
 #include "common.h"
 #include "esp_unicviewad.h"
+#include <sys/time.h>
 
 #define TXD_PIN 17
 #define RXD_PIN 16
@@ -119,6 +120,12 @@ static void Uart_changeChart(
     int maxTemp,
     int originY,
     bool isDelta);
+static void Uart_changeNumber(
+    unsigned short int vp,
+    unsigned short value);
+static void Uart_requestGetRTCTime(void);
+static void Uart_requestSetRTCTime(void);
+static void Uart_setRTCTime(time_t sec);
 
 /* protected: */
 static QState Uart_initial(Uart * const me, void const * const par);
@@ -144,6 +151,10 @@ QActive * const AO_Uart = &l_uart.super;
 static void Uart_uartTask(void * pvParameters) {
     Uart *me = &l_uart;
     uart_event_t uart_event;
+
+    ESP_LOGI(TAG, "Getting system time");
+    //Uart_requestSetRTCTime();
+    Uart_requestGetRTCTime();
 
         for (;;) {
             if (xQueueReceive(me->uartQueue, (void *)&uart_event, portMAX_DELAY)) {
@@ -201,30 +212,47 @@ static void Uart_processEvent(
             QACTIVE_POST(AO_Uart, &ure->super, me);
         }
     } else {
-        UartInputSliderEvt *ure = Q_NEW(UartInputSliderEvt, UART_INPUT_SLIDER_SIG);
+        if(data[3] == 129) {
+    /*
+        time_t timestamp = 0;
 
-        unsigned short int vp = 0;
-        unsigned short int value = 0;
-        ControlType controlType = CONTROL_NONE;
+        memcpy(&timestamp, &data[start+6], sizeof(time_t));
+        swapbytes(&timestamp, sizeof(time_t));
+        ESP_LOGE(TAG, "timestamp: %ld", timestamp);
 
-        memcpy(&vp, data+4, sizeof(unsigned short int));
-        memcpy(&value, data+7, sizeof(unsigned short int));
-        swapbytes(&vp, sizeof(unsigned short int));
-        swapbytes(&value, sizeof(unsigned short int));
+        Uart_setRTCTime(timestamp);
 
-        if(vp == VP_CONTROL_POTENCIA) {
-            controlType = POTENCIA;
-        } else if(vp == VP_CONTROL_CILINDRO) {
-            controlType = CILINDRO;
-        } else if(vp == VP_CONTROL_TURBINA) {
-            controlType = TURBINA;
+        time_t time_now;
+        time(&time_now);
+
+        ESP_LOGE(TAG, "Time now: %ld", time_now);
+    */
+        } else {
+            UartInputSliderEvt *ure = Q_NEW(UartInputSliderEvt, UART_INPUT_SLIDER_SIG);
+
+            unsigned short int vp = 0;
+            unsigned short int value = 0;
+            ControlType controlType = CONTROL_NONE;
+
+            memcpy(&vp, data+4, sizeof(unsigned short int));
+            memcpy(&value, data+7, sizeof(unsigned short int));
+            swapbytes(&vp, sizeof(unsigned short int));
+            swapbytes(&value, sizeof(unsigned short int));
+
+            if(vp == 80) {
+                controlType = POTENCIA;
+            } else if(vp == 82) {
+                controlType = CILINDRO;
+            } else {
+                ESP_LOGE(TAG, "Unknown slider event");
+            }
+
+            ure->control = controlType;
+            ure->value = value;
+
+            ESP_LOGI(TAG, "[SLIDER]: Type: %d, value %d", controlType, value);
+            QACTIVE_POST(AO_Uart, &ure->super, me);
         }
-
-        ure->control = controlType;
-        ure->value = value;
-
-        ESP_LOGI(TAG, "[SLIDER]: Type: %d, value %d", controlType, value);
-        QACTIVE_POST(AO_Uart, &ure->super, me);
     }
 }
 
@@ -363,6 +391,69 @@ static void Uart_changeChart(
     }
 }
 
+/*${AOs::Uart::changeNumber} ...............................................*/
+static void Uart_changeNumber(
+    unsigned short int vp,
+    unsigned short value)
+{
+    unsigned char container[MAX_CONTAINER_SIZE];
+
+    swapbytes(&vp, sizeof(vp));
+    swapbytes(&value, sizeof(unsigned short));
+    int length = packet_write_vp(vp, &value, sizeof(unsigned short), container);
+
+    uart_write_bytes(UART_NUM, container, length);
+}
+
+/*${AOs::Uart::requestGetRTCTime} ..........................................*/
+static void Uart_requestGetRTCTime(void) {
+    unsigned char container[MAX_CONTAINER_SIZE];
+    unsigned char reg = 0x20;
+    unsigned char payload = 7;
+
+    int length = packet_read_register(&reg, &payload, sizeof(unsigned char), container);
+
+    ESP_LOGE(TAG, "Sending: ");
+    for(int i=0; i<length; i++)
+            printf("%x |", container[i]);
+        printf("\n");
+
+    uart_write_bytes(UART_NUM, container, length);
+}
+
+/*${AOs::Uart::requestSetRTCTime} ..........................................*/
+static void Uart_requestSetRTCTime(void) {
+    unsigned char container[MAX_CONTAINER_SIZE];
+    unsigned char reg = 0x1F;
+    time_t payload = 1670445;
+
+    ESP_LOGE(TAG, "STILL SETTING");
+
+    swapbytes(&payload, sizeof(time_t));
+    int length = packet_write_register(&reg, &payload, sizeof(time_t), container);
+
+    uart_write_bytes(UART_NUM, container, length);
+}
+
+/*${AOs::Uart::setRTCTime} .................................................*/
+static void Uart_setRTCTime(time_t sec) {
+    struct timeval tm_vl;
+        int sreturn;
+
+        tm_vl.tv_sec= sec;
+        tm_vl.tv_usec= 0;
+
+        sreturn=settimeofday(&tm_vl, NULL);
+
+        if (sreturn== 0)
+        {
+            printf("settimeofday is executed without any error\n");
+        }
+        else {
+            printf("settimeofday is unsuccessful ");
+        }
+}
+
 /*${AOs::Uart::SM} .........................................................*/
 static QState Uart_initial(Uart * const me, void const * const par) {
     /*${AOs::Uart::SM::initial} */
@@ -437,9 +528,17 @@ static QState Uart_state1(Uart * const me, QEvt const * const e) {
 
             IhmInputConfigSaveEvt *hic = Q_NEW(IhmInputConfigSaveEvt, IHM_INPUT_CONFIG_SAVE_SIG);
             hic->pre = uic->pre;
-            hic->cool = uic->cool;
+            hic->roast = uic->cool;
 
             QACTIVE_POST(AO_Ihm, &hic->super, me);
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Uart::SM::state1::UART_OUTPUT_NUMBER} */
+        case UART_OUTPUT_NUMBER_SIG: {
+            UartOutputNumberEvt *uev = Q_EVT_CAST(UartOutputNumberEvt);
+
+            Uart_changeNumber(uev->vp, uev->value);
             status_ = Q_HANDLED();
             break;
         }
@@ -470,10 +569,6 @@ void Uart_ctor(void) {
     ESP_ERROR_CHECK(uart_set_pin(UART_NUM, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 
     xTaskCreate(Uart_uartTask, "UART_TASK", 8192, NULL, 2, NULL);
-
-    ESP_LOGI(TAG, "Created uart task");
-
-
 
     QActive_ctor(&me->super, Q_STATE_CAST(&Uart_initial));
 }

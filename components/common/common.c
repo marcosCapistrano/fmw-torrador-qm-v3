@@ -46,7 +46,7 @@ static const char *TAG = "COMMON";
 
 /*${Common::postUart_setPage} ..............................................*/
 void postUart_setPage(unsigned short int picid) {
-    ESP_LOGD(TAG, "[IHM_UART_SET_PAGE]");
+    ESP_LOGV(TAG, "[IHM_UART_SET_PAGE]");
 
     UartOutputPageEvt *pageEv = Q_NEW(UartOutputPageEvt, UART_OUTPUT_PAGE_SIG);
     pageEv->picid = picid;
@@ -60,7 +60,7 @@ void postUart_setString(
     bool reset,
     size_t reset_len)
 {
-    ESP_LOGD(TAG, "[IHM_UART_SET_STRING]");
+    ESP_LOGV(TAG, "[IHM_UART_SET_STRING]");
 
     if(reset) {
         char resetStr[100] = {0};
@@ -92,11 +92,26 @@ void postUart_setIcon(
     unsigned short int vp,
     unsigned short int icon)
 {
-    ESP_LOGD(TAG, "[IHM_UART_SET_ICON]");
+    ESP_LOGV(TAG, "[IHM_UART_SET_ICON]");
 
     UartOutputIconEvt *iconEv = Q_NEW(UartOutputIconEvt, UART_OUTPUT_ICON_SIG);
     iconEv->vp = vp;
     iconEv->icon = icon;
     QACTIVE_POST(AO_Uart, &iconEv->super, me);
+}
+
+/*${Common::postUart_setNumber} ............................................*/
+void postUart_setNumber(
+    unsigned short int vp,
+    unsigned short value)
+{
+    ESP_LOGV(TAG, "[IHM_UART_SET_NUMBER]");
+
+    UartOutputNumberEvt *numberEv = Q_NEW(UartOutputNumberEvt, UART_OUTPUT_NUMBER_SIG);
+    numberEv->vp = vp;
+    numberEv->value = value;
+    QACTIVE_POST(AO_Uart, &numberEv->super, me);
+
+
 }
 /*$enddef${Common} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/

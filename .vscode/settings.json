@@ -13,6 +13,7 @@
         "common.h": "c",
         "bitset": "c",
         "chrono": "c",
-        "algorithm": "c"
+        "algorithm": "c",
+        "*.inc": "c"
     }
 }

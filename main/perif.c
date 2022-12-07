@@ -177,17 +177,20 @@ static QState Perif_sensoring(Perif * const me, QEvt const * const e) {
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::Perif::SM::sensoring::UPDATE_CONTROL} */
-        case UPDATE_CONTROL_SIG: {
-            UpdateControlEvt *evt = Q_EVT_CAST(UpdateControlEvt);
+        /*${AOs::Perif::SM::sensoring::CONTROL_UPDATE} */
+        case CONTROL_UPDATE_SIG: {
+            ControlUpdateEvt *evt = Q_EVT_CAST(ControlUpdateEvt);
             ControlType type = evt->control;
-            const int value = evt->value;
+            int value = evt->value;
 
             ESP_LOGD(TAG, "Received command: %d - value: %d", type, value);
 
             if(type == POTENCIA) {
                 potencia_set_duty(value);
             } else if(type == CILINDRO) {
+                if(value > 100) value = 100;
+                else if(value < 0) value = 0;
+
                 me->wantedCil = value;
                 QTimeEvt_rearm(&me->pwmTimeEvt, PWM_CHECK_INTERVAL);
             } else if(type == TURBINA) {
@@ -197,7 +200,7 @@ static QState Perif_sensoring(Perif * const me, QEvt const * const e) {
             ControlDataEvt *contPot;
             contPot = Q_NEW(ControlDataEvt, CONTROL_DATA_SIG);
             contPot->control = type;
-            contPot->payload = (void *)value;
+            contPot->value = value;
             QACTIVE_POST(AO_DataBroker, &contPot->super, me);
 
             status_ = Q_HANDLED();
@@ -402,17 +405,20 @@ static QState Perif_cooling(Perif * const me, QEvt const * const e) {
             status_ = Q_TRAN(&Perif_summary);
             break;
         }
-        /*${AOs::Perif::SM::cooling::UPDATE_CONTROL} */
-        case UPDATE_CONTROL_SIG: {
-            UpdateControlEvt *evt = Q_EVT_CAST(UpdateControlEvt);
+        /*${AOs::Perif::SM::cooling::CONTROL_UPDATE} */
+        case CONTROL_UPDATE_SIG: {
+            ControlUpdateEvt *evt = Q_EVT_CAST(ControlUpdateEvt);
             ControlType type = evt->control;
-            const int value = evt->value;
+            int value = evt->value;
 
             ESP_LOGD(TAG, "Received command: %d - value: %d", type, value);
 
             if(type == POTENCIA) {
                 potencia_set_duty(value);
             } else if(type == CILINDRO) {
+                if(value > 100) value = 100;
+                else if(value < 0) value = 0;
+
                 me->wantedCil = value;
                 QTimeEvt_rearm(&me->pwmTimeEvt, PWM_CHECK_INTERVAL);
             } else if(type == TURBINA) {
@@ -422,7 +428,7 @@ static QState Perif_cooling(Perif * const me, QEvt const * const e) {
             ControlDataEvt *contPot;
             contPot = Q_NEW(ControlDataEvt, CONTROL_DATA_SIG);
             contPot->control = type;
-            contPot->payload = (void *)value;
+            contPot->value = value;
             QACTIVE_POST(AO_DataBroker, &contPot->super, me);
 
             status_ = Q_HANDLED();

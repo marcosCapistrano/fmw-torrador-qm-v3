@@ -9,11 +9,16 @@
   <item name="backups">0</item>
  </group>
  <group name="windows">
-  <item id="AOs::Perif::SM">-208,0,816,567</item>
-  <item id="..::components::common::include::common.h">0,0,816,567</item>
+  <item id="AOs::Perif::SM">0,0,816,567</item>
+  <item id="..::components::common::include::common.h">20,0,816,567</item>
   <item id=".::perif.c">0,0,596,300</item>
-  <item id="AOs::DataBroker::SM">-208,0,816,567</item>
-  <item id="AOs::Ihm::SM">0,0,608,481,*</item>
+  <item id="AOs::DataBroker::SM">20,0,816,567</item>
+  <item id="AOs::Ihm::SM">0,0,929,788,*</item>
+  <item id="AOs::Uart::SM">0,93,650,431</item>
+  <item id=".::uart.c">0,224,596,300</item>
+  <item id=".::ihm.c">240,0,596,300</item>
+  <item id=".::main.c">240,224,596,300</item>
+  <item id="..::components::common::common.c">0,0,596,300</item>
  </group>
  <group name="search">
   <item name="options">2032128</item>

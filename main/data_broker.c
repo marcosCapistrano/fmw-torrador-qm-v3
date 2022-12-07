@@ -46,20 +46,13 @@ typedef struct {
 /* protected: */
     QActive super;
 
-/* public: */
-    time_t time_start;
-    int pre_heat_value;
-    int cooler_value;
-
 /* private: */
+    Config config;
+    RoastData curr_roast;
+    RecipeData curr_recipe;
 
 /* public: */
     QTimeEvt recipeTimerEvt;
-
-/* private: */
-    RecipeCommands recipe_commands;
-    int curr_command;
-    ModeData curr_mode;
 } DataBroker;
 
 /* private: */
@@ -69,12 +62,14 @@ static void DataBroker_updateSensorData(DataBroker * const me,
     SensorData * sensorData,
     bool enqueue);
 static void DataBroker_setupRecipe(DataBroker * const me);
-extern SensorData DataBroker_sensorData;
-extern int DataBroker_aux_ar;
-extern int DataBroker_aux_grao;
+static void DataBroker_resetData(DataBroker * const me);
+static void DataBroker_resetConfig(DataBroker * const me);
+static void DataBroker_resetRoast(DataBroker * const me);
+static void DataBroker_resetRecipe(DataBroker * const me);
 
 /* protected: */
 static QState DataBroker_initial(DataBroker * const me, void const * const par);
+static QState DataBroker_state1(DataBroker * const me, QEvt const * const e);
 static QState DataBroker_idle(DataBroker * const me, QEvt const * const e);
 static QState DataBroker_active_mode(DataBroker * const me, QEvt const * const e);
 static QState DataBroker_pre_heating(DataBroker * const me, QEvt const * const e);
@@ -106,12 +101,6 @@ QActive * const AO_DataBroker = &l_dataBroker.super;
 /*$define${AOs::DataBroker} vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv*/
 
 /*${AOs::DataBroker} .......................................................*/
-SensorData DataBroker_sensorData = {0};
-
-int DataBroker_aux_ar  = 0;
-
-int DataBroker_aux_grao  = 0;
-
 
 /*${AOs::DataBroker::updateSensorData} .....................................*/
 static void DataBroker_updateSensorData(DataBroker * const me,
@@ -120,6 +109,7 @@ static void DataBroker_updateSensorData(DataBroker * const me,
     SensorData * sensorData,
     bool enqueue)
 {
+    /*
     if(value > sensorData->max_temp) {
        sensorData->max_temp = value;
     } else if(value < sensorData->min_temp) {
@@ -207,10 +197,13 @@ static void DataBroker_updateSensorData(DataBroker * const me,
             }
         }
     }
+
+    */
 }
 
 /*${AOs::DataBroker::setupRecipe} ..........................................*/
 static void DataBroker_setupRecipe(DataBroker * const me) {
+    /*
     me->recipe_commands = (RecipeCommands){
         .intervals = {0},
         .controls = {0},
@@ -219,6 +212,55 @@ static void DataBroker_setupRecipe(DataBroker * const me) {
     };
     me->curr_command = 0;
     storage_get_recipe_commands(me->curr_mode.roast, &me->recipe_commands);
+    */
+}
+
+/*${AOs::DataBroker::resetData} ............................................*/
+static void DataBroker_resetData(DataBroker * const me) {
+    DataBroker_resetConfig(me);
+    DataBroker_resetRoast(me);
+    DataBroker_resetRecipe(me);
+}
+
+/*${AOs::DataBroker::resetConfig} ..........................................*/
+static void DataBroker_resetConfig(DataBroker * const me) {
+    uint16_t pre_heat = 0;
+    uint16_t roast = 0;
+    storage_get_global_config(&pre_heat, &roast);
+
+    me->config.max_pre_heat = pre_heat;
+    me->config.max_roast = roast;
+}
+
+/*${AOs::DataBroker::resetRoast} ...........................................*/
+static void DataBroker_resetRoast(DataBroker * const me) {
+    me->curr_roast.time_start = 0;
+    me->curr_roast.time_end = 0;
+
+    me->curr_roast.sensor_data.ar.count = 0;
+    /*
+    me->sensor_data.ar.temps = {0};
+    me->sensor_data.ar.deltas = {0};
+    */
+
+    me->curr_roast.sensor_data.grao.count = 0;
+    /*
+    me->sensor_data.grao.temps = {0};
+    me->sensor_data.grao.deltas = {0};
+    */
+
+    me->curr_roast.sensor_data.max = 0;
+    me->curr_roast.sensor_data.min = 0;
+}
+
+/*${AOs::DataBroker::resetRecipe} ..........................................*/
+static void DataBroker_resetRecipe(DataBroker * const me) {
+    /*
+    me->curr_recipe.intervals = {0};
+    me->curr_recipe.controls = {0};
+    me->curr_recipe.values = {0};
+    */
+    me->curr_recipe.count = 0;
 }
 
 /*${AOs::DataBroker::SM} ...................................................*/
@@ -227,23 +269,60 @@ static QState DataBroker_initial(DataBroker * const me, void const * const par) 
     return Q_TRAN(&DataBroker_idle);
 }
 
-/*${AOs::DataBroker::SM::idle} .............................................*/
+/*${AOs::DataBroker::SM::state1} ...........................................*/
+static QState DataBroker_state1(DataBroker * const me, QEvt const * const e) {
+    QState status_;
+    switch (e->sig) {
+        /*${AOs::DataBroker::SM::state1::CONFIG_UPDATE} */
+        case CONFIG_UPDATE_SIG: {
+            ConfigUpdateEvt *confEv = Q_EVT_CAST(ConfigUpdateEvt);
+
+            storage_set_global_config(confEv->pre_heat, confEv->roast);
+
+            ESP_LOGV(TAG, "Setting new Config: %d - %d", confEv->pre_heat, confEv->roast);
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::DataBroker::SM::state1::REQUEST_CONFIG} */
+        case REQUEST_CONFIG_SIG: {
+            uint16_t pre_heat = 0;
+            uint16_t roast = 0;
+
+            storage_get_global_config(&pre_heat, &roast);
+            ESP_LOGE(TAG, "Got global config: %d, %d", pre_heat, roast);
+
+            ResponseConfigEvt *respEv = Q_NEW(ResponseConfigEvt, RESPONSE_CONFIG_SIG);
+            respEv->pre_heat = pre_heat;
+            respEv->roast = roast;
+            QACTIVE_POST(AO_Ihm, respEv, me);
+            status_ = Q_HANDLED();
+            break;
+        }
+        default: {
+            status_ = Q_SUPER(&QHsm_top);
+            break;
+        }
+    }
+    return status_;
+}
+
+/*${AOs::DataBroker::SM::state1::idle} .....................................*/
 static QState DataBroker_idle(DataBroker * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${AOs::DataBroker::SM::idle} */
+        /*${AOs::DataBroker::SM::state1::idle} */
         case Q_ENTRY_SIG: {
             ESP_LOGI(TAG, "[IDLE][ENTRY]");
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::idle} */
+        /*${AOs::DataBroker::SM::state1::idle} */
         case Q_EXIT_SIG: {
             ESP_LOGI(TAG, "[IDLE][EXIT]");
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::idle::REQUEST_RECIPES} */
+        /*${AOs::DataBroker::SM::state1::idle::REQUEST_RECIPES} */
         case REQUEST_RECIPES_SIG: {
             RequestRecipesEvt *recipesEvt = Q_EVT_CAST(RequestRecipesEvt);
             uint8_t pageNum = recipesEvt->pageNum;
@@ -278,7 +357,7 @@ static QState DataBroker_idle(DataBroker * const me, QEvt const * const e) {
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::idle::REQUEST_RECIPE} */
+        /*${AOs::DataBroker::SM::state1::idle::REQUEST_RECIPE} */
         case REQUEST_RECIPE_SIG: {
             RequestRecipeEvt *reqEvt = Q_EVT_CAST(RequestRecipeEvt);
             char *roast = reqEvt->roast;
@@ -301,10 +380,10 @@ static QState DataBroker_idle(DataBroker * const me, QEvt const * const e) {
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::idle::REQUEST_MODE} */
+        /*${AOs::DataBroker::SM::state1::idle::REQUEST_MODE} */
         case REQUEST_MODE_SIG: {
             RequestModeEvt *rme = Q_EVT_CAST(RequestModeEvt);
-            /*${AOs::DataBroker::SM::idle::REQUEST_MODE::[MODE_MANUAL]} */
+            /*${AOs::DataBroker::SM::state1::idle::REQUEST_MODE::[MODE_MANUAL]} */
             if (rme->mode == MODE_MANUAL) {
                 NotifyModeEvt *nme = Q_NEW(NotifyModeEvt, NOTIFY_MODE_SIG);
                 nme->mode = MODE_MANUAL;
@@ -316,11 +395,13 @@ static QState DataBroker_idle(DataBroker * const me, QEvt const * const e) {
                 strcpy(nme2->roast,"");
                 QACTIVE_POST(AO_Ihm, &nme2->super, me);
 
+                /*
                 me->curr_mode.mode = MODE_MANUAL;
                 strcpy(me->curr_mode.roast, rme->roast);
+                */
                 status_ = Q_TRAN(&DataBroker_sensoring);
             }
-            /*${AOs::DataBroker::SM::idle::REQUEST_MODE::[MODE_AUTO]} */
+            /*${AOs::DataBroker::SM::state1::idle::REQUEST_MODE::[MODE_AUTO]} */
             else if (rme->mode == MODE_AUTO) {
                 NotifyModeEvt *nme = Q_NEW(NotifyModeEvt, NOTIFY_MODE_SIG);
                 nme->mode = MODE_AUTO;
@@ -332,8 +413,10 @@ static QState DataBroker_idle(DataBroker * const me, QEvt const * const e) {
                 strcpy(nme2->roast,rme->roast);
                 QACTIVE_POST(AO_Ihm, &nme2->super, me);
 
+                /*
                 me->curr_mode.mode = MODE_AUTO;
                 strcpy(me->curr_mode.roast, rme->roast);
+                */
                 status_ = Q_TRAN(&DataBroker_auto_pre_heating);
             }
             else {
@@ -341,7 +424,7 @@ static QState DataBroker_idle(DataBroker * const me, QEvt const * const e) {
             }
             break;
         }
-        /*${AOs::DataBroker::SM::idle::REQUEST_ROASTS} */
+        /*${AOs::DataBroker::SM::state1::idle::REQUEST_ROASTS} */
         case REQUEST_ROASTS_SIG: {
             RequestRoastsEvt *roastsEvt = Q_EVT_CAST(RequestRoastsEvt);
             uint8_t pageNum = roastsEvt->pageNum;
@@ -376,7 +459,7 @@ static QState DataBroker_idle(DataBroker * const me, QEvt const * const e) {
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::idle::REQUEST_ROAST} */
+        /*${AOs::DataBroker::SM::state1::idle::REQUEST_ROAST} */
         case REQUEST_ROAST_SIG: {
             RequestRoastEvt *reqEvt = Q_EVT_CAST(RequestRoastEvt);
             char *roast = reqEvt->roast;
@@ -399,7 +482,7 @@ static QState DataBroker_idle(DataBroker * const me, QEvt const * const e) {
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::idle::REQUEST_TRANSFORM_ROAST} */
+        /*${AOs::DataBroker::SM::state1::idle::REQUEST_TRANSFORM_ROAST} */
         case REQUEST_TRANSFORM_ROAST_SIG: {
             RequestTransformRoastEvt *rtr = Q_EVT_CAST(RequestTransformRoastEvt);
 
@@ -411,50 +494,50 @@ static QState DataBroker_idle(DataBroker * const me, QEvt const * const e) {
             break;
         }
         default: {
-            status_ = Q_SUPER(&QHsm_top);
+            status_ = Q_SUPER(&DataBroker_state1);
             break;
         }
     }
     return status_;
 }
 
-/*${AOs::DataBroker::SM::active_mode} ......................................*/
+/*${AOs::DataBroker::SM::state1::active_mode} ..............................*/
 static QState DataBroker_active_mode(DataBroker * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${AOs::DataBroker::SM::active_mode} */
+        /*${AOs::DataBroker::SM::state1::active_mode} */
         case Q_ENTRY_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][ENTRY]");
 
-            me->pre_heat_value = 0;
-            me->cooler_value = 0;
+            //me->pre_heat_value = 0;
+            //me->cooler_value = 0;
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode} */
+        /*${AOs::DataBroker::SM::state1::active_mode} */
         case Q_EXIT_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][ENTRY]");
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::UPDATE_CONTROL} */
-        case UPDATE_CONTROL_SIG: {
-            UpdateControlEvt *contEv = Q_EVT_CAST(UpdateControlEvt);
+        /*${AOs::DataBroker::SM::state1::active_mode::CONTROL_UPDATE} */
+        case CONTROL_UPDATE_SIG: {
+            ControlUpdateEvt *contEv = Q_EVT_CAST(ControlUpdateEvt);
             QACTIVE_POST(AO_Perif, contEv, me);
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::CONTROL_DATA} */
+        /*${AOs::DataBroker::SM::state1::active_mode::CONTROL_DATA} */
         case CONTROL_DATA_SIG: {
             ControlDataEvt *contEv = Q_EVT_CAST(ControlDataEvt);
             QACTIVE_POST(AO_Ihm, contEv, me);
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::REQUEST_MODE} */
+        /*${AOs::DataBroker::SM::state1::active_mode::REQUEST_MODE} */
         case REQUEST_MODE_SIG: {
             RequestModeEvt *rme = Q_EVT_CAST(RequestModeEvt);
-            /*${AOs::DataBroker::SM::active_mode::REQUEST_MODE::[rme->mode==MODE_NONE]} */
+            /*${AOs::DataBroker::SM::state1::active_mode::REQUEST_MODE::[rme->mode==MODE_NONE]} */
             if (rme->mode == MODE_NONE) {
                 NotifyModeEvt *nme = Q_NEW(NotifyModeEvt, NOTIFY_MODE_SIG);
                 nme->mode = MODE_NONE;
@@ -466,8 +549,10 @@ static QState DataBroker_active_mode(DataBroker * const me, QEvt const * const e
                 strcpy(nme2->roast,"");
                 QACTIVE_POST(AO_Ihm, &nme2->super, me);
 
+                /*
                 me->curr_mode.mode = MODE_NONE;
                 strcpy(me->curr_mode.roast, rme->roast);
+                */
                 status_ = Q_TRAN(&DataBroker_idle);
             }
             else {
@@ -476,30 +561,32 @@ static QState DataBroker_active_mode(DataBroker * const me, QEvt const * const e
             break;
         }
         default: {
-            status_ = Q_SUPER(&QHsm_top);
+            status_ = Q_SUPER(&DataBroker_state1);
             break;
         }
     }
     return status_;
 }
 
-/*${AOs::DataBroker::SM::active_mode::pre_heating} .........................*/
+/*${AOs::DataBroker::SM::state1::active_mode::pre_heating} .................*/
 static QState DataBroker_pre_heating(DataBroker * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${AOs::DataBroker::SM::active_mode::pre_heating} */
+        /*${AOs::DataBroker::SM::state1::active_mode::pre_heating} */
         case Q_ENTRY_SIG: {
             storage_create_new_roast();
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::pre_heating::SENSOR_UPDATE} */
+        /*${AOs::DataBroker::SM::state1::active_mode::pre_heating::SENSOR_UPDATE} */
         case SENSOR_UPDATE_SIG: {
             SensorUpdateEvt *sensorEv = Q_EVT_CAST(SensorUpdateEvt);
 
+            /*
             if(sensorEv->type == SENSOR_GRAO) {
                 me->pre_heat_value = sensorEv->value;
             }
+            */
 
             //DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, &DataBroker_sensorData, false);
             SensorDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_DATA_SIG);
@@ -519,26 +606,26 @@ static QState DataBroker_pre_heating(DataBroker * const me, QEvt const * const e
     return status_;
 }
 
-/*${AOs::DataBroker::SM::active_mode::pre_heating::auto_pre_heating} .......*/
+/*${AOs::DataBroker::SM::state1::active_mode::pre_heating::auto_pre_heating}*/
 static QState DataBroker_auto_pre_heating(DataBroker * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${AOs::DataBroker::SM::active_mode::pre_heating::auto_pre_heating} */
+        /*${AOs::DataBroker::SM::state1::active_mode::pre_heating::auto_pre_heating} */
         case Q_ENTRY_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][AUTO_PRE_HEATING][ENTRY]");
 
-            ESP_LOGE(TAG, "recipe: %s", me->curr_mode.roast);
+            //ESP_LOGE(TAG, "recipe: %s", me->curr_mode.roast);
             DataBroker_setupRecipe(me);
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::pre_heating::auto_pre_heating} */
+        /*${AOs::DataBroker::SM::state1::active_mode::pre_heating::auto_pre_heating} */
         case Q_EXIT_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][AUTO_PRE_HEATING][EXIT]");
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::pre_heating::auto_pre_heating::REQUEST_NEXT_STAGE} */
+        /*${AOs::DataBroker::SM::state1::active_mode::pre_heating::auto_pre_heating::REQUEST_NEXT_STAGE} */
         case REQUEST_NEXT_STAGE_SIG: {
             NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
             stageEv->auto_mode = true;
@@ -558,23 +645,38 @@ static QState DataBroker_auto_pre_heating(DataBroker * const me, QEvt const * co
     return status_;
 }
 
-/*${AOs::DataBroker::SM::active_mode::pre_heating::manual_pre_heating} .....*/
+/*${AOs::DataBroker::SM::state1::active_mode::pre_heating::manual_pre_heating}*/
 static QState DataBroker_manual_pre_heating(DataBroker * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${AOs::DataBroker::SM::active_mode::pre_heating::manual_pre_heating} */
+        /*${AOs::DataBroker::SM::state1::active_mode::pre_heating::manual_pre_heating} */
         case Q_ENTRY_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][MANUAL_PRE_HEATING][ENTRY]");
+
+            ControlUpdateEvt *potEv = Q_NEW(ControlUpdateEvt, CONTROL_UPDATE_SIG);
+            potEv->control = POTENCIA;
+            potEv->value = 100;
+            QACTIVE_POST(AO_Perif, potEv, me);
+
+            ControlUpdateEvt *cilEv = Q_NEW(ControlUpdateEvt, CONTROL_UPDATE_SIG);
+            potEv->control = CILINDRO;
+            potEv->value = 100;
+            QACTIVE_POST(AO_Perif, cilEv, me);
+
+            ControlUpdateEvt *turbEv = Q_NEW(ControlUpdateEvt, CONTROL_UPDATE_SIG);
+            potEv->control = TURBINA;
+            potEv->value = 70;
+            QACTIVE_POST(AO_Perif, turbEv, me);
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::pre_heating::manual_pre_heating} */
+        /*${AOs::DataBroker::SM::state1::active_mode::pre_heating::manual_pre_heating} */
         case Q_EXIT_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][MANUAL_PRE_HEATING][EXIT]");
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::pre_heating::manual_pre_heati~::REQUEST_NEXT_STAGE} */
+        /*${AOs::DataBroker::SM::state1::active_mode::pre_heating::manual_pre_heati~::REQUEST_NEXT_STAGE} */
         case REQUEST_NEXT_STAGE_SIG: {
             NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
             stageEv->auto_mode = false;
@@ -594,28 +696,32 @@ static QState DataBroker_manual_pre_heating(DataBroker * const me, QEvt const * 
     return status_;
 }
 
-/*${AOs::DataBroker::SM::active_mode::roasting} ............................*/
+/*${AOs::DataBroker::SM::state1::active_mode::roasting} ....................*/
 static QState DataBroker_roasting(DataBroker * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${AOs::DataBroker::SM::active_mode::roasting} */
+        /*${AOs::DataBroker::SM::state1::active_mode::roasting} */
         case Q_ENTRY_SIG: {
+            /*
             time_t time_now;
             time(&time_now);
 
             me->time_start = time_now;
 
             storage_add_roast_pre_heat_record(0, me->pre_heat_value);
+            */
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::roasting::SENSOR_UPDATE} */
+        /*${AOs::DataBroker::SM::state1::active_mode::roasting::SENSOR_UPDATE} */
         case SENSOR_UPDATE_SIG: {
             SensorUpdateEvt *sensorEv = Q_EVT_CAST(SensorUpdateEvt);
 
+            /*
             if(sensorEv->type == SENSOR_GRAO) {
                 me->cooler_value = sensorEv->value;
             }
+            */
 
             //DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, &DataBroker_sensorData, false);
             SensorDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_DATA_SIG);
@@ -624,16 +730,19 @@ static QState DataBroker_roasting(DataBroker * const me, QEvt const * const e) {
             sensorDataEv->delta = 0;
             QACTIVE_POST(AO_Ihm, sensorDataEv, me);
 
+            /*
             time_t time_now;
             time(&time_now);
 
             time_t time_elapsed = time_now - me->time_start;
             storage_add_roast_sensor_record(time_elapsed, sensorEv->type, sensorEv->value);
+            */
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::roasting::CONTROL_DATA} */
+        /*${AOs::DataBroker::SM::state1::active_mode::roasting::CONTROL_DATA} */
         case CONTROL_DATA_SIG: {
+            /*
             ControlDataEvt *contEv = Q_EVT_CAST(ControlDataEvt);
             QACTIVE_POST(AO_Ihm, contEv, me);
 
@@ -642,6 +751,7 @@ static QState DataBroker_roasting(DataBroker * const me, QEvt const * const e) {
 
             time_t time_elapsed = time_now - me->time_start;
             storage_add_roast_control_record(time_elapsed, contEv->control, contEv->payload);
+            */
             status_ = Q_HANDLED();
             break;
         }
@@ -653,16 +763,16 @@ static QState DataBroker_roasting(DataBroker * const me, QEvt const * const e) {
     return status_;
 }
 
-/*${AOs::DataBroker::SM::active_mode::roasting::auto_roasting} .............*/
+/*${AOs::DataBroker::SM::state1::active_mode::roasting::auto_roasting} .....*/
 static QState DataBroker_auto_roasting(DataBroker * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${AOs::DataBroker::SM::active_mode::roasting::auto_roasting} */
+        /*${AOs::DataBroker::SM::state1::active_mode::roasting::auto_roasting} */
         case Q_ENTRY_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][AUTO_ROASTING][ENTRY]");
 
 
-
+            /*
             time_t time_now;
             time(&time_now);
 
@@ -676,16 +786,17 @@ static QState DataBroker_auto_roasting(DataBroker * const me, QEvt const * const
                 ESP_LOGD(TAG, "Scheduled command %d for %lds - value: %d", me->recipe_commands.controls[me->curr_command], time_command, me->recipe_commands.values[me->curr_command]);
                 QTimeEvt_armX(&me->recipeTimerEvt, time_command * CONFIG_FREERTOS_HZ, 0U);
             }
+            */
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::roasting::auto_roasting} */
+        /*${AOs::DataBroker::SM::state1::active_mode::roasting::auto_roasting} */
         case Q_EXIT_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][AUTO_ROASTING][EXIT]");
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::roasting::auto_roasting::REQUEST_NEXT_STAGE} */
+        /*${AOs::DataBroker::SM::state1::active_mode::roasting::auto_roasting::REQUEST_NEXT_STAGE} */
         case REQUEST_NEXT_STAGE_SIG: {
             NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
             stageEv->auto_mode = true;
@@ -697,10 +808,10 @@ static QState DataBroker_auto_roasting(DataBroker * const me, QEvt const * const
             status_ = Q_TRAN(&DataBroker_auto_cooling);
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::roasting::auto_roasting::DATA_RECIPE_TIMEOUT} */
+        /*${AOs::DataBroker::SM::state1::active_mode::roasting::auto_roasting::DATA_RECIPE_TIMEOUT} */
         case DATA_RECIPE_TIMEOUT_SIG: {
             QTimeEvt_disarm(&me->recipeTimerEvt);
-
+            /*
             ControlType control = me->recipe_commands.controls[me->curr_command];
             int value = me->recipe_commands.values[me->curr_command];
 
@@ -709,12 +820,12 @@ static QState DataBroker_auto_roasting(DataBroker * const me, QEvt const * const
             contEv->value = value;
             QACTIVE_POST(AO_Perif, contEv, me);
 
-            /*
+
             ControlDataEvt *contEv2 = Q_EVT_CAST(ControlDataEvt);
             contEv2->control = control;
             contEv2->value = value;
             QACTIVE_POST(AO_Ihm, contEv, me);
-            */
+
 
             me->curr_command += 1;
 
@@ -731,6 +842,7 @@ static QState DataBroker_auto_roasting(DataBroker * const me, QEvt const * const
                 ESP_LOGD(TAG, "Scheduled command %d for %lds - value: %d", me->recipe_commands.controls[me->curr_command], time_command, me->recipe_commands.values[me->curr_command]);
                 QTimeEvt_armX(&me->recipeTimerEvt, time_command * CONFIG_FREERTOS_HZ, 0U);
             }
+            */
             status_ = Q_HANDLED();
             break;
         }
@@ -742,23 +854,23 @@ static QState DataBroker_auto_roasting(DataBroker * const me, QEvt const * const
     return status_;
 }
 
-/*${AOs::DataBroker::SM::active_mode::roasting::manual_roasting} ...........*/
+/*${AOs::DataBroker::SM::state1::active_mode::roasting::manual_roasting} ...*/
 static QState DataBroker_manual_roasting(DataBroker * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${AOs::DataBroker::SM::active_mode::roasting::manual_roasting} */
+        /*${AOs::DataBroker::SM::state1::active_mode::roasting::manual_roasting} */
         case Q_ENTRY_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][MANUAL_ROASTING][ENTRY]");
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::roasting::manual_roasting} */
+        /*${AOs::DataBroker::SM::state1::active_mode::roasting::manual_roasting} */
         case Q_EXIT_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][MANUAL_ROASTING][EXIT]");
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::roasting::manual_roasting::REQUEST_NEXT_STAGE} */
+        /*${AOs::DataBroker::SM::state1::active_mode::roasting::manual_roasting::REQUEST_NEXT_STAGE} */
         case REQUEST_NEXT_STAGE_SIG: {
             NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
             stageEv->auto_mode = false;
@@ -778,21 +890,23 @@ static QState DataBroker_manual_roasting(DataBroker * const me, QEvt const * con
     return status_;
 }
 
-/*${AOs::DataBroker::SM::active_mode::cooling} .............................*/
+/*${AOs::DataBroker::SM::state1::active_mode::cooling} .....................*/
 static QState DataBroker_cooling(DataBroker * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${AOs::DataBroker::SM::active_mode::cooling} */
+        /*${AOs::DataBroker::SM::state1::active_mode::cooling} */
         case Q_ENTRY_SIG: {
+            /*
             time_t time_now;
             time(&time_now);
 
             time_t time_elapsed = time_now - me->time_start;
             storage_add_roast_cooler_record(time_elapsed, me->cooler_value);
+            */
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::cooling::SENSOR_UPDATE} */
+        /*${AOs::DataBroker::SM::state1::active_mode::cooling::SENSOR_UPDATE} */
         case SENSOR_UPDATE_SIG: {
             SensorUpdateEvt *sensorEv = Q_EVT_CAST(SensorUpdateEvt);
 
@@ -802,16 +916,19 @@ static QState DataBroker_cooling(DataBroker * const me, QEvt const * const e) {
             sensorDataEv->value = sensorEv->value;
             QACTIVE_POST(AO_Ihm, sensorDataEv, me);
 
+            /*
             time_t time_now;
             time(&time_now);
 
             time_t time_elapsed = time_now - me->time_start;
             storage_add_roast_sensor_record(time_elapsed, sensorEv->type, sensorEv->value);
+            */
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::cooling::CONTROL_DATA} */
+        /*${AOs::DataBroker::SM::state1::active_mode::cooling::CONTROL_DATA} */
         case CONTROL_DATA_SIG: {
+            /*
             ControlDataEvt *contEv = Q_EVT_CAST(ControlDataEvt);
             QACTIVE_POST(AO_Ihm, contEv, me);
 
@@ -820,6 +937,7 @@ static QState DataBroker_cooling(DataBroker * const me, QEvt const * const e) {
 
             time_t time_elapsed = time_now - me->time_start;
             storage_add_roast_control_record(time_elapsed, contEv->control, contEv->payload);
+            */
             status_ = Q_HANDLED();
             break;
         }
@@ -831,29 +949,27 @@ static QState DataBroker_cooling(DataBroker * const me, QEvt const * const e) {
     return status_;
 }
 
-/*${AOs::DataBroker::SM::active_mode::cooling::auto_cooling} ...............*/
+/*${AOs::DataBroker::SM::state1::active_mode::cooling::auto_cooling} .......*/
 static QState DataBroker_auto_cooling(DataBroker * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${AOs::DataBroker::SM::active_mode::cooling::auto_cooling} */
+        /*${AOs::DataBroker::SM::state1::active_mode::cooling::auto_cooling} */
         case Q_ENTRY_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][AUTO_COOLING][ENTRY]");
 
 
-
-
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::cooling::auto_cooling} */
+        /*${AOs::DataBroker::SM::state1::active_mode::cooling::auto_cooling} */
         case Q_EXIT_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][AUTO_COOLING][EXIT]");
 
-            QTimeEvt_disarm(&me->recipeTimerEvt);
+            //QTimeEvt_disarm(&me->recipeTimerEvt);
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::cooling::auto_cooling::REQUEST_NEXT_STAGE} */
+        /*${AOs::DataBroker::SM::state1::active_mode::cooling::auto_cooling::REQUEST_NEXT_STAGE} */
         case REQUEST_NEXT_STAGE_SIG: {
             NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
             stageEv->auto_mode = true;
@@ -865,10 +981,10 @@ static QState DataBroker_auto_cooling(DataBroker * const me, QEvt const * const 
             status_ = Q_TRAN(&DataBroker_auto_summary);
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::cooling::auto_cooling::DATA_RECIPE_TIMEOUT} */
+        /*${AOs::DataBroker::SM::state1::active_mode::cooling::auto_cooling::DATA_RECIPE_TIMEOUT} */
         case DATA_RECIPE_TIMEOUT_SIG: {
             QTimeEvt_disarm(&me->recipeTimerEvt);
-
+            /*
             ControlType control = me->recipe_commands.controls[me->curr_command];
             int value = me->recipe_commands.values[me->curr_command];
 
@@ -892,6 +1008,7 @@ static QState DataBroker_auto_cooling(DataBroker * const me, QEvt const * const 
                 ESP_LOGD(TAG, "Scheduled command %d for %lds - value: %d", me->recipe_commands.controls[me->curr_command], time_command, me->recipe_commands.values[me->curr_command]);
                 QTimeEvt_armX(&me->recipeTimerEvt, time_command * CONFIG_FREERTOS_HZ, 0U);
             }
+            */
             status_ = Q_HANDLED();
             break;
         }
@@ -903,25 +1020,23 @@ static QState DataBroker_auto_cooling(DataBroker * const me, QEvt const * const 
     return status_;
 }
 
-/*${AOs::DataBroker::SM::active_mode::cooling::manual_cooling} .............*/
+/*${AOs::DataBroker::SM::state1::active_mode::cooling::manual_cooling} .....*/
 static QState DataBroker_manual_cooling(DataBroker * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${AOs::DataBroker::SM::active_mode::cooling::manual_cooling} */
+        /*${AOs::DataBroker::SM::state1::active_mode::cooling::manual_cooling} */
         case Q_ENTRY_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][MANUAL_COOLING][ENTRY]");
-
-
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::cooling::manual_cooling} */
+        /*${AOs::DataBroker::SM::state1::active_mode::cooling::manual_cooling} */
         case Q_EXIT_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][MANUAL_COOLING][EXIT]");
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::cooling::manual_cooling::REQUEST_NEXT_STAGE} */
+        /*${AOs::DataBroker::SM::state1::active_mode::cooling::manual_cooling::REQUEST_NEXT_STAGE} */
         case REQUEST_NEXT_STAGE_SIG: {
             NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
             stageEv->auto_mode = false;
@@ -941,11 +1056,11 @@ static QState DataBroker_manual_cooling(DataBroker * const me, QEvt const * cons
     return status_;
 }
 
-/*${AOs::DataBroker::SM::active_mode::summary} .............................*/
+/*${AOs::DataBroker::SM::state1::active_mode::summary} .....................*/
 static QState DataBroker_summary(DataBroker * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${AOs::DataBroker::SM::active_mode::summary} */
+        /*${AOs::DataBroker::SM::state1::active_mode::summary} */
         case Q_ENTRY_SIG: {
             //storage_get_current_roast_summary(&me->temps_ar, &me->temps_grao, &me->temps_count_ar, &me->temps_count_grao);
             status_ = Q_HANDLED();
@@ -959,11 +1074,11 @@ static QState DataBroker_summary(DataBroker * const me, QEvt const * const e) {
     return status_;
 }
 
-/*${AOs::DataBroker::SM::active_mode::summary::manual_summary} .............*/
+/*${AOs::DataBroker::SM::state1::active_mode::summary::manual_summary} .....*/
 static QState DataBroker_manual_summary(DataBroker * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${AOs::DataBroker::SM::active_mode::summary::manual_summary} */
+        /*${AOs::DataBroker::SM::state1::active_mode::summary::manual_summary} */
         case Q_ENTRY_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][MANUAL_SUMMARY][ENTRY]");
 
@@ -971,13 +1086,13 @@ static QState DataBroker_manual_summary(DataBroker * const me, QEvt const * cons
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::summary::manual_summary} */
+        /*${AOs::DataBroker::SM::state1::active_mode::summary::manual_summary} */
         case Q_EXIT_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][MANUAL_SUMMARY][EXIT]");
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::summary::manual_summary::REQUEST_NEXT_STAGE} */
+        /*${AOs::DataBroker::SM::state1::active_mode::summary::manual_summary::REQUEST_NEXT_STAGE} */
         case REQUEST_NEXT_STAGE_SIG: {
             NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
             stageEv->auto_mode = false;
@@ -997,23 +1112,23 @@ static QState DataBroker_manual_summary(DataBroker * const me, QEvt const * cons
     return status_;
 }
 
-/*${AOs::DataBroker::SM::active_mode::summary::auto_summary} ...............*/
+/*${AOs::DataBroker::SM::state1::active_mode::summary::auto_summary} .......*/
 static QState DataBroker_auto_summary(DataBroker * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${AOs::DataBroker::SM::active_mode::summary::auto_summary} */
+        /*${AOs::DataBroker::SM::state1::active_mode::summary::auto_summary} */
         case Q_ENTRY_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][AUTO_COOLING][ENTRY]");
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::summary::auto_summary} */
+        /*${AOs::DataBroker::SM::state1::active_mode::summary::auto_summary} */
         case Q_EXIT_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][AUTO_COOLING][EXIT]");
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::active_mode::summary::auto_summary::REQUEST_NEXT_STAGE} */
+        /*${AOs::DataBroker::SM::state1::active_mode::summary::auto_summary::REQUEST_NEXT_STAGE} */
         case REQUEST_NEXT_STAGE_SIG: {
             NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
             stageEv->auto_mode = true;
@@ -1033,30 +1148,32 @@ static QState DataBroker_auto_summary(DataBroker * const me, QEvt const * const 
     return status_;
 }
 
-/*${AOs::DataBroker::SM::sensoring} ........................................*/
+/*${AOs::DataBroker::SM::state1::sensoring} ................................*/
 static QState DataBroker_sensoring(DataBroker * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${AOs::DataBroker::SM::sensoring} */
+        /*${AOs::DataBroker::SM::state1::sensoring} */
         case Q_ENTRY_SIG: {
             ESP_LOGI(TAG, "[MANUAL_MODE][MANUAL_IDLE][ENTRY]");
 
-
+            DataBroker_resetData(me);
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::sensoring} */
+        /*${AOs::DataBroker::SM::state1::sensoring} */
         case Q_EXIT_SIG: {
             ESP_LOGI(TAG, "[MANUAL_MODE][MANUAL_IDLE][EXIT]");
 
+            /*
             DataBroker_sensorData.temps_grao_count = 0;
             DataBroker_sensorData.temps_ar_count = 0;
             DataBroker_sensorData.deltas_ar[0] = 0;
             DataBroker_sensorData.deltas_grao[0] = 0;
+            */
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::sensoring::SENSOR_UPDATE} */
+        /*${AOs::DataBroker::SM::state1::sensoring::SENSOR_UPDATE} */
         case SENSOR_UPDATE_SIG: {
             SensorUpdateEvt *sensorEv = Q_EVT_CAST(SensorUpdateEvt);
 
@@ -1069,10 +1186,10 @@ static QState DataBroker_sensoring(DataBroker * const me, QEvt const * const e) 
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::sensoring::REQUEST_MODE} */
+        /*${AOs::DataBroker::SM::state1::sensoring::REQUEST_MODE} */
         case REQUEST_MODE_SIG: {
             RequestModeEvt *rme = Q_EVT_CAST(RequestModeEvt);
-            /*${AOs::DataBroker::SM::sensoring::REQUEST_MODE::[EXIT_MODE]} */
+            /*${AOs::DataBroker::SM::state1::sensoring::REQUEST_MODE::[EXIT_MODE]} */
             if (rme->mode == MODE_NONE) {
                 status_ = Q_TRAN(&DataBroker_idle);
             }
@@ -1081,7 +1198,7 @@ static QState DataBroker_sensoring(DataBroker * const me, QEvt const * const e) 
             }
             break;
         }
-        /*${AOs::DataBroker::SM::sensoring::REQUEST_NEXT_STAGE} */
+        /*${AOs::DataBroker::SM::state1::sensoring::REQUEST_NEXT_STAGE} */
         case REQUEST_NEXT_STAGE_SIG: {
             NotifyNextStageEvt *stageEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
             stageEv->auto_mode = false;
@@ -1093,14 +1210,14 @@ static QState DataBroker_sensoring(DataBroker * const me, QEvt const * const e) 
             status_ = Q_TRAN(&DataBroker_manual_pre_heating);
             break;
         }
-        /*${AOs::DataBroker::SM::sensoring::UPDATE_CONTROL} */
-        case UPDATE_CONTROL_SIG: {
-            UpdateControlEvt *contEv = Q_EVT_CAST(UpdateControlEvt);
+        /*${AOs::DataBroker::SM::state1::sensoring::CONTROL_UPDATE} */
+        case CONTROL_UPDATE_SIG: {
+            ControlUpdateEvt *contEv = Q_EVT_CAST(ControlUpdateEvt);
             QACTIVE_POST(AO_Perif, contEv, me);
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::sensoring::CONTROL_DATA} */
+        /*${AOs::DataBroker::SM::state1::sensoring::CONTROL_DATA} */
         case CONTROL_DATA_SIG: {
             ControlDataEvt *contEv = Q_EVT_CAST(ControlDataEvt);
             QACTIVE_POST(AO_Ihm, contEv, me);
@@ -1108,7 +1225,7 @@ static QState DataBroker_sensoring(DataBroker * const me, QEvt const * const e) 
             break;
         }
         default: {
-            status_ = Q_SUPER(&QHsm_top);
+            status_ = Q_SUPER(&DataBroker_state1);
             break;
         }
     }

@@ -6,6 +6,7 @@
 #include "esp_log.h"
 
 #define WRITE_CONTROL_REG 0x80
+#define READ_CONTROL_REG 0x81
 #define WRITE_VP 0x82
 #define READ_VP 0x83
 
@@ -69,6 +70,38 @@ int packet_write_vp(unsigned short int vp, unsigned char *payload, unsigned char
 int packet_write_register(unsigned char reg, unsigned char *payload, unsigned char length, unsigned char *container) {
     unsigned char request = WRITE_CONTROL_REG;
     int newLength = sizeof(unsigned char) + sizeof(unsigned char) + length;
+    int offset = 0;
+
+    memset(container, 0x00, MAX_CONTAINER_SIZE * sizeof(unsigned char));
+
+    // copia o header para o container (HEADER H + HEADER L)
+    memcpy(container, HEADER, 2 * sizeof(unsigned char));
+    offset += 2 * sizeof(unsigned char);
+
+    // copia o tamanho do payload para o container
+    memcpy(container + offset, &newLength, sizeof(unsigned char));
+    offset += sizeof(unsigned char);
+
+    // copia request para o container
+    memcpy(container + offset, &request, sizeof(unsigned char));
+    offset += sizeof(unsigned char);
+
+    // copia register para container
+    memcpy(container + offset, &reg, sizeof(unsigned char));
+    offset += sizeof(unsigned char);
+
+    // copia payload para container
+    memcpy(container + offset, payload, length * sizeof(unsigned char));
+    offset += length * sizeof(unsigned char);
+
+    // retorna tamanho da carga útil do container
+    return offset;
+}
+
+int packet_read_register(unsigned char reg, unsigned char *payload, unsigned char length, unsigned char *container) {
+    unsigned char request = READ_CONTROL_REG;
+    int newLength = sizeof(unsigned char) + sizeof(unsigned char) + length;
+    
     int offset = 0;
 
     memset(container, 0x00, MAX_CONTAINER_SIZE * sizeof(unsigned char));

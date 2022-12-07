@@ -40,6 +40,7 @@ enum Signals {
     UART_OUTPUT_PAGE_SIG,
     UART_OUTPUT_ICON_SIG,
     UART_OUTPUT_TEXT_SIG,
+    UART_OUTPUT_NUMBER_SIG,
     UART_OUTPUT_CHART_SIG,
     UART_INPUT_CONFIG_SAVE_SIG,
 
@@ -75,14 +76,19 @@ enum Signals {
     SENSOR_GAS_DATA_SIG,
     CHART_DATA_SIG,
 
-    UPDATE_CONTROL_SIG,
+    CONTROL_UPDATE_SIG,
     CONTROL_DATA_SIG,
+
+    CONFIG_UPDATE_SIG,
 
     REQUEST_TRANSFORM_ROAST_SIG,
     DATA_RECIPE_TIMEOUT_SIG,
 
     REQUEST_SUMMARY_SIG,
     RESPONSE_SUMMARY_SIG,
+
+    REQUEST_CONFIG_SIG,
+    RESPONSE_CONFIG_SIG,
 };
 
 typedef enum ControlType {
@@ -127,18 +133,17 @@ typedef struct ModeDataTag {
     char roast[25];
 } ModeData;
 
-typedef struct SensorDataTag {
-    int temps_grao[31];
-    int temps_ar[31];
-    int deltas_grao[31];
-    int deltas_ar[31];
-    int temps_grao_count;
-    int temps_ar_count;
+typedef struct TempDataTag {
+    int count;
+    int temps[31];
+    int deltas[31];
+} TempData;
 
-    int max_temp;
-    int min_temp;
-    int max_temp_delta;
-    int min_temp_delta;
+typedef struct SensorDataTag {
+    TempData ar;
+    TempData grao;
+    int max;
+    int min;
 } SensorData;
 
 typedef struct RoastsResponseTag {
@@ -169,12 +174,31 @@ typedef struct RecipeResponseTag {
     SensorData *sensorData;
 } RecipeResponse;
 
-typedef struct RecipeCommandsTag {
+typedef struct ControlDataTag {
+    int potencia;
+    int cilindro;
+    int turbina;
+} ControlData;
+
+typedef struct RoastDataTag {
+    time_t time_start;
+    time_t time_end;
+    SensorData sensor_data;
+    ControlData control_data;
+} RoastData;
+
+typedef struct RecipeDataTag {
     time_t intervals[100];
     ControlType controls[100];
     int values[100];
     int count;
-} RecipeCommands;
+    int curr_command;
+} RecipeData;
+
+typedef struct ConfigTag {
+    int max_pre_heat;
+    int max_roast;
+} Config;
 
 typedef enum ControlToggleTag {
     TOGGLE_OFF,
@@ -360,7 +384,7 @@ typedef struct {
     time_t total_time;
 } RequestSummaryEvt;
 
-/*${Events::UpdateControlEvt} ..............................................*/
+/*${Events::ControlUpdateEvt} ..............................................*/
 typedef struct {
 /* protected: */
     QEvt super;
@@ -368,7 +392,7 @@ typedef struct {
 /* public: */
     ControlType control;
     int value;
-} UpdateControlEvt;
+} ControlUpdateEvt;
 
 /*${Events::ControlDataEvt} ................................................*/
 typedef struct {
@@ -377,7 +401,7 @@ typedef struct {
 
 /* public: */
     ControlType control;
-    void * payload;
+    int value;
 } ControlDataEvt;
 
 /*${Events::SensorDataEvt} .................................................*/
@@ -533,8 +557,44 @@ typedef struct {
 
 /* public: */
     unsigned short pre;
-    unsigned short cool;
+    unsigned short roast;
 } IhmInputConfigSaveEvt;
+
+/*${Events::ConfigUpdateEvt} ...............................................*/
+typedef struct {
+/* protected: */
+    QEvt super;
+
+/* public: */
+    uint16_t pre_heat;
+    uint16_t roast;
+} ConfigUpdateEvt;
+
+/*${Events::RequestConfigEvt} ..............................................*/
+typedef struct {
+/* protected: */
+    QEvt super;
+} RequestConfigEvt;
+
+/*${Events::ResponseConfigEvt} .............................................*/
+typedef struct {
+/* protected: */
+    QEvt super;
+
+/* public: */
+    uint32_t pre_heat;
+    uint32_t roast;
+} ResponseConfigEvt;
+
+/*${Events::UartOutputNumberEvt} ...........................................*/
+typedef struct {
+/* protected: */
+    QEvt super;
+
+/* public: */
+    unsigned short int vp;
+    unsigned short value;
+} UartOutputNumberEvt;
 /*$enddecl${Events} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
 
 /*$declare${AOs::Ihm_ctor} vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv*/
@@ -595,6 +655,11 @@ void postUart_setString(
 void postUart_setIcon(
     unsigned short int vp,
     unsigned short int icon);
+
+/*${Common::postUart_setNumber} ............................................*/
+void postUart_setNumber(
+    unsigned short int vp,
+    unsigned short value);
 /*$enddecl${Common} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
 
 #endif

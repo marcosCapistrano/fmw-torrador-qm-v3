@@ -7,12 +7,16 @@
 #define NAMESPACE "config"
 #define RECIPE_NUMBER_KEY "recipe_number"
 #define ROAST_NUMBER_KEY "roast_number"
+#define GLOBAL_MAX_PRE_HEAT_KEY "max_pre_heat"
+#define GLOBAL_MAX_ROAST_KEY "max_roast"
 
 static const char *TAG = "STORAGE";
 
 static nvs_handle_t my_nvs_handle;
 static uint32_t roast_number = 1;
 static uint32_t recipe_number = 1;
+static uint16_t global_max_pre_heat = 1;
+static uint16_t global_max_roast = 1;
 
 static uint8_t get_u32(const char *key, uint32_t base_value) {
     uint32_t temp_out;
@@ -33,6 +37,25 @@ static void set_u32(const char *key, uint32_t new_value) {
     nvs_commit(my_nvs_handle);
 }
 
+static uint8_t get_u16(const char *key, uint16_t base_value) {
+    uint16_t temp_out;
+
+    esp_err_t err = nvs_get_u16(my_nvs_handle, key, &temp_out);
+    if (err != ESP_OK) {
+        nvs_set_u16(my_nvs_handle, key, base_value);
+        nvs_commit(my_nvs_handle);
+        return base_value;
+    }
+
+    return temp_out;
+}
+
+static void set_u16(const char *key, uint16_t new_value) {
+    ESP_ERROR_CHECK(nvs_set_u16(my_nvs_handle, key, new_value));
+
+    nvs_commit(my_nvs_handle);
+}
+
 static void set_roast_number(uint32_t new_value) {
     if (roast_number != new_value) {
         set_u32(ROAST_NUMBER_KEY, new_value);
@@ -47,9 +70,25 @@ static void set_recipe_number(uint32_t new_value) {
     }
 }
 
+static void set_global_max_pre_heat(uint16_t new_value) {
+    if (global_max_pre_heat != new_value) {
+        set_u16(GLOBAL_MAX_PRE_HEAT_KEY, new_value);
+        global_max_pre_heat = new_value;
+    }
+}
+
+static void set_global_max_roast(uint16_t new_value) {
+    if (global_max_roast != new_value) {
+        set_u16(GLOBAL_MAX_ROAST_KEY, new_value);
+        global_max_roast = new_value;
+    }
+}
+
 static void init_cache() {
     roast_number = get_u32(ROAST_NUMBER_KEY, 0);
     recipe_number = get_u32(RECIPE_NUMBER_KEY, 0);
+    global_max_pre_heat = get_u16(GLOBAL_MAX_PRE_HEAT_KEY, 0);
+    global_max_roast = get_u16(GLOBAL_MAX_ROAST_KEY, 0);
 }
 
 static void init_fs() {
@@ -82,6 +121,16 @@ static void init_fs() {
     } else {
         ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
     }
+}
+
+void storage_set_global_config(uint16_t pre_heat, uint16_t roast) {
+    set_global_max_pre_heat(pre_heat);
+    set_global_max_roast(roast);
+}
+
+void storage_get_global_config(uint16_t *pre_heat, uint16_t *roast) {
+    *pre_heat = global_max_pre_heat;
+    *roast = global_max_roast;
 }
 
 void storage_create_new_roast() {
@@ -359,6 +408,7 @@ void storage_transform_roast(char *roast) {
 }
 
 static void update_data_from_sensor_entry(SensorType type, int value, SensorData *sensorData, int *aux_grao, int *aux_ar) {
+    /*
     if (value > sensorData->max_temp) {
         sensorData->max_temp = value;
     } else if (value < sensorData->min_temp) {
@@ -433,9 +483,11 @@ static void update_data_from_sensor_entry(SensorType type, int value, SensorData
             *aux_ar = *aux_ar % 25;
         }
     }
+    */
 }
 
 int storage_get_roast(char *roast, RoastResponse *res) {
+    /*
     FILE *file = fopen(roast, "r");
     if (file == NULL) {
         ESP_LOGE(TAG, "Não foi possivel encontrar arquivo: %s", roast);
@@ -465,10 +517,12 @@ int storage_get_roast(char *roast, RoastResponse *res) {
     // httpd_resp_sendstr_chunk(req, NULL);
     fclose(file);
 
+*/
     return 1;
 }
 
 int storage_get_recipe(char *roast, RecipeResponse *res) {
+    /*
     FILE *file = fopen(roast, "r");
     if (file == NULL) {
         ESP_LOGE(TAG, "Não foi possivel encontrar arquivo: %s", roast);
@@ -498,10 +552,11 @@ int storage_get_recipe(char *roast, RecipeResponse *res) {
     // httpd_resp_sendstr_chunk(req, NULL);
     fclose(file);
 
+    */
     return 1;
 }
 
-int storage_get_recipe_commands(char *recipe, RecipeCommands *commands) {
+int storage_get_recipe_data(char *recipe, RecipeData *commands) {
     FILE *file = fopen(recipe, "r");
     if (file == NULL) {
         ESP_LOGE(TAG, "Não foi possivel encontrar arquivo: %s", recipe);
