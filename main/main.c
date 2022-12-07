@@ -65,16 +65,16 @@ typedef struct {
 } largePool;
 static QF_MPOOL_EL(largePool) largePoolSto[CONFIG_QPC_LARGE_POOL_SIZE];
 
-static QEvt const *ihmQueueSto[20];
+static QEvt const *ihmQueueSto[30];
 static QEvt const *perifQueueSto[20];
 static QEvt const *dataBrokerQueueSto[20];
-static QEvt const *uartQueueSto[20];
+static QEvt const *uartQueueSto[30];
 
 static QSubscrList subscrSto[25];
-static StackType_t ihmStack[4096];
+static StackType_t ihmStack[8192];
 static StackType_t perifStack[4096];
 static StackType_t dataBrokerStack[16384];
-static StackType_t uartStack[4096];
+static StackType_t uartStack[8192];
 
 void setup_peripherals();
 void storage_init();
@@ -110,10 +110,7 @@ void app_main() {
     QF_poolInit(mediumPoolSto, sizeof(mediumPoolSto), sizeof(mediumPoolSto[0]));
     QF_poolInit(largePoolSto, sizeof(largePoolSto), sizeof(largePoolSto[0]));
 
-
-
-
-QActive_setAttr(AO_Uart, TASK_NAME_ATTR, "UART");
+    QActive_setAttr(AO_Uart, TASK_NAME_ATTR, "UART");
     QACTIVE_START(AO_Uart,             /* AO to start */
                   (uint_fast8_t)(5),  /* QP priority of the AO */
                   uartQueueSto,        /* event queue storage */
@@ -121,7 +118,6 @@ QActive_setAttr(AO_Uart, TASK_NAME_ATTR, "UART");
                   uartStack,           /* stack storage */
                   sizeof(uartStack),   /* stack size [bytes] */
                   (QEvt *)0);         /* initialization event (not used) */
-
 
     QActive_setAttr(AO_Ihm, TASK_NAME_ATTR, "IHM");
     QACTIVE_START(AO_Ihm,             /* AO to start */
@@ -131,7 +127,6 @@ QActive_setAttr(AO_Uart, TASK_NAME_ATTR, "UART");
                   ihmStack,           /* stack storage */
                   sizeof(ihmStack),   /* stack size [bytes] */
                   (QEvt *)0);         /* initialization event (not used) */
-
 
     QActive_setAttr(AO_Perif, TASK_NAME_ATTR, "PERIF");
     QACTIVE_START(AO_Perif,             /* AO to start */

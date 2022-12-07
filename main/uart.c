@@ -173,12 +173,33 @@ static void Uart_processEvent(
     Se conter, é um input no slider
     */
 
-    if(data[start] != '\x5A') {
-        UartInputTouchEvt *ure = Q_NEW(UartInputTouchEvt, UART_INPUT_TOUCH_SIG);
-        ure->length = end-start;
+    /*
+    for(int i=start; i<end; i++)
+        printf("%d |", data[i]);
+    printf("\n");
+    */
 
-        ESP_LOGI(TAG, "[TOUCH], Length: %d", (end-start));
-        QACTIVE_POST(AO_Uart, &ure->super, me);
+    if(data[start] != '\x5A') {
+        if (end - start >= 24) {
+            unsigned short pre = 0, cool = 0;
+            memcpy(&pre, &data[start], sizeof(unsigned short));
+            swapbytes(&pre, sizeof(unsigned short));
+
+            memcpy(&cool, &data[start] + 4 + sizeof(unsigned short), sizeof(unsigned short));
+            swapbytes(&cool, sizeof(unsigned short));
+
+            UartInputConfigSaveEvt *uic = Q_NEW(UartInputConfigSaveEvt, UART_INPUT_CONFIG_SAVE_SIG);
+            uic->pre = pre;
+            uic->cool = cool;
+
+            QACTIVE_POST(AO_Uart, &uic->super, me);
+        } else {
+            UartInputTouchEvt *ure = Q_NEW(UartInputTouchEvt, UART_INPUT_TOUCH_SIG);
+            ure->length = end-start;
+
+            ESP_LOGI(TAG, "[TOUCH], Length: %d", (end-start));
+            QACTIVE_POST(AO_Uart, &ure->super, me);
+        }
     } else {
         UartInputSliderEvt *ure = Q_NEW(UartInputSliderEvt, UART_INPUT_SLIDER_SIG);
 
@@ -366,10 +387,12 @@ static QState Uart_state1(Uart * const me, QEvt const * const e) {
         /*${AOs::Uart::SM::state1::UART_INPUT_SLIDER} */
         case UART_INPUT_SLIDER_SIG: {
             UartInputSliderEvt *uev = Q_EVT_CAST(UartInputSliderEvt);
+            ControlType control = uev->control;
+            int value = uev->value;
 
             IhmInputSliderEvt *iev = Q_NEW(IhmInputSliderEvt, IHM_INPUT_SLIDER_SIG);
-            iev->control = uev->control;
-            iev->value = uev->value;
+            iev->control = control;
+            iev->value = value;
 
             QACTIVE_POST(AO_Ihm, &iev->super, me);
             status_ = Q_HANDLED();
@@ -408,6 +431,18 @@ static QState Uart_state1(Uart * const me, QEvt const * const e) {
             status_ = Q_HANDLED();
             break;
         }
+        /*${AOs::Uart::SM::state1::UART_INPUT_CONFIG_SAVE} */
+        case UART_INPUT_CONFIG_SAVE_SIG: {
+            UartInputConfigSaveEvt *uic = Q_EVT_CAST(UartInputConfigSaveEvt);
+
+            IhmInputConfigSaveEvt *hic = Q_NEW(IhmInputConfigSaveEvt, IHM_INPUT_CONFIG_SAVE_SIG);
+            hic->pre = uic->pre;
+            hic->cool = uic->cool;
+
+            QACTIVE_POST(AO_Ihm, &hic->super, me);
+            status_ = Q_HANDLED();
+            break;
+        }
         default: {
             status_ = Q_SUPER(&QHsm_top);
             break;
@@ -430,11 +465,11 @@ void Uart_ctor(void) {
             .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
         };
 
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM, BUF_SIZE * 2, BUF_SIZE * 2, 20, &me->uartQueue, 0));
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM, BUF_SIZE * 2, BUF_SIZE * 2, 30, &me->uartQueue, 0));
     ESP_ERROR_CHECK(uart_param_config(UART_NUM, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_NUM, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 
-    xTaskCreate(Uart_uartTask, "UART_TASK", 2400, NULL, 6, NULL);
+    xTaskCreate(Uart_uartTask, "UART_TASK", 8192, NULL, 2, NULL);
 
     ESP_LOGI(TAG, "Created uart task");
 

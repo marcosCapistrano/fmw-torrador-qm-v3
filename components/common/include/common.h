@@ -41,10 +41,12 @@ enum Signals {
     UART_OUTPUT_ICON_SIG,
     UART_OUTPUT_TEXT_SIG,
     UART_OUTPUT_CHART_SIG,
+    UART_INPUT_CONFIG_SAVE_SIG,
 
     IHM_INPUT_TOUCH_SIG,
     IHM_INPUT_SLIDER_SIG,
     IHM_STAGE_TIMER_TIMEOUT_SIG,
+    IHM_INPUT_CONFIG_SAVE_SIG,
 
     REQUEST_NEXT_STAGE_SIG,
     NOTIFY_NEXT_STAGE_SIG,
@@ -513,6 +515,26 @@ typedef struct {
     SensorData * sensorData;
     SensorType type;
 } ChartDataEvt;
+
+/*${Events::UartInputConfigSaveEvt} ........................................*/
+typedef struct {
+/* protected: */
+    QEvt super;
+
+/* public: */
+    unsigned short pre;
+    unsigned short cool;
+} UartInputConfigSaveEvt;
+
+/*${Events::IhmInputConfigSaveEvt} .........................................*/
+typedef struct {
+/* protected: */
+    QEvt super;
+
+/* public: */
+    unsigned short pre;
+    unsigned short cool;
+} IhmInputConfigSaveEvt;
 /*$enddecl${Events} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
 
 /*$declare${AOs::Ihm_ctor} vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv*/

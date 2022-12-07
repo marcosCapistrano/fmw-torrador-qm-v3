@@ -65,9 +65,13 @@ void postUart_setString(
     if(reset) {
         char resetStr[100] = {0};
         int i;
+
         for(i=0; i<reset_len; i++)
             strcpy(&resetStr[i], " ");
-        strcpy(&resetStr[++i],"\0");
+
+        i++;
+        strcpy(&resetStr[i], "\0");
+        //ESP_LOGE(TAG, "Reseting to: %s - len: %d", resetStr, strlen(resetStr));
 
         UartOutputTextEvt *resetEv = Q_NEW(UartOutputTextEvt, UART_OUTPUT_TEXT_SIG);
         resetEv->vp = vp;

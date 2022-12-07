@@ -29,6 +29,7 @@
 */
 /*$endhead${.::ihm.c} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
 #include "qpc.h"
+#include <math.h>
 #include "common.h"
 #include "esp_log.h"
 #include <string.h>
@@ -154,12 +155,14 @@ static void Ihm_setupPageManualControls(void);
 static void Ihm_setupPageSummary(void);
 static void Ihm_setupPageConfig(void);
 static void Ihm_resetState(Ihm * const me);
+static void Ihm_setupPageControls(void);
 
 /* protected: */
 static QState Ihm_initial(Ihm * const me, void const * const par);
 static QState Ihm_main_menu(Ihm * const me, QEvt const * const e);
 static QState Ihm_manual_mode(Ihm * const me, QEvt const * const e);
-static QState Ihm_warn_new(Ihm * const me, QEvt const * const e);
+static QState Ihm_manual_config(Ihm * const me, QEvt const * const e);
+static QState Ihm_manual_events(Ihm * const me, QEvt const * const e);
 static QState Ihm_manual_page(Ihm * const me, QEvt const * const e);
 static QState Ihm_idle(Ihm * const me, QEvt const * const e);
 static QState Ihm_active(Ihm * const me, QEvt const * const e);
@@ -168,12 +171,12 @@ static QState Ihm_chart(Ihm * const me, QEvt const * const e);
 static QState Ihm_roasting(Ihm * const me, QEvt const * const e);
 static QState Ihm_cooling(Ihm * const me, QEvt const * const e);
 static QState Ihm_manual_controls(Ihm * const me, QEvt const * const e);
-static QState Ihm_manual_config(Ihm * const me, QEvt const * const e);
+static QState Ihm_summary(Ihm * const me, QEvt const * const e);
+static QState Ihm_warn_new(Ihm * const me, QEvt const * const e);
 static QState Ihm_auto_mode(Ihm * const me, QEvt const * const e);
 static QState Ihm_auto_controls(Ihm * const me, QEvt const * const e);
 static QState Ihm_recipes(Ihm * const me, QEvt const * const e);
 static QState Ihm_roasts(Ihm * const me, QEvt const * const e);
-static QState Ihm_summary(Ihm * const me, QEvt const * const e);
 static QState Ihm_config(Ihm * const me, QEvt const * const e);
 /*$enddecl${AOs::Ihm} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
 
@@ -619,6 +622,20 @@ static void Ihm_resetState(Ihm * const me) {
     };
 }
 
+/*${AOs::Ihm::setupPageControls} ...........................................*/
+static void Ihm_setupPageControls(void) {
+    ESP_LOGD(TAG, "[IHM_SETUP_PAGE_CONTROLS]");
+
+    postUart_setPage(CONTROLS_PICID);
+    postUart_setString(NAVBAR_TEXT_VP, "CONTROLES", true, NAVBAR_TEXT_LEN);
+
+    postUart_setString(SENSOR_AR_TEXT_VP, "0\0", true, SENSOR_AR_TEXT_LEN);
+    postUart_setString(DELTA_AR_TEXT_VP, "0\0", true, DELTA_AR_TEXT_LEN);
+
+    postUart_setString(SENSOR_GRAO_TEXT_VP, "0\0", true, SENSOR_GRAO_TEXT_LEN);
+    postUart_setString(DELTA_GRAO_TEXT_VP, "0\0", true, DELTA_GRAO_TEXT_LEN);
+}
+
 /*${AOs::Ihm::SM} ..........................................................*/
 static QState Ihm_initial(Ihm * const me, void const * const par) {
     /*${AOs::Ihm::SM::initial} */
@@ -724,6 +741,485 @@ static QState Ihm_manual_mode(Ihm * const me, QEvt const * const e) {
     return status_;
 }
 
+/*${AOs::Ihm::SM::manual_mode::manual_config} ..............................*/
+static QState Ihm_manual_config(Ihm * const me, QEvt const * const e) {
+    QState status_;
+    switch (e->sig) {
+        /*${AOs::Ihm::SM::manual_mode::manual_config} */
+        case Q_ENTRY_SIG: {
+            ESP_LOGD(TAG, "[CONFIG][ENTRY]");
+
+            Ihm_setupPageConfig();
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_config} */
+        case Q_EXIT_SIG: {
+            ESP_LOGD(TAG, "[CONFIG][EXIT]");
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_config::IHM_INPUT_TOUCH} */
+        case IHM_INPUT_TOUCH_SIG: {
+            IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);
+            /*${AOs::Ihm::SM::manual_mode::manual_config::IHM_INPUT_TOUCH::[ihmEv->length==3]} */
+            if (ihmEv->length == 3) {
+                status_ = Q_TRAN_HIST(me->hist_manual_page);
+            }
+            else {
+                status_ = Q_UNHANDLED();
+            }
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_config::IHM_INPUT_CONFIG_SAVE} */
+        case IHM_INPUT_CONFIG_SAVE_SIG: {
+            ESP_LOGE(TAG, "TODO: save data that came");
+
+            IhmInputConfigSaveEvt *ev = Q_EVT_CAST(IhmInputConfigSaveEvt);
+            printf("pre: %d, cool: %d", ev->pre, ev->cool);
+            status_ = Q_TRAN_HIST(me->hist_manual_page);
+            break;
+        }
+        default: {
+            status_ = Q_SUPER(&Ihm_manual_mode);
+            break;
+        }
+    }
+    return status_;
+}
+
+/*${AOs::Ihm::SM::manual_mode::manual_events} ..............................*/
+static QState Ihm_manual_events(Ihm * const me, QEvt const * const e) {
+    QState status_;
+    switch (e->sig) {
+        /*${AOs::Ihm::SM::manual_mode::manual_events::CONTROL_DATA} */
+        case CONTROL_DATA_SIG: {
+            ControlDataEvt *contEv = Q_EVT_CAST(ControlDataEvt);
+
+            ControlType control = contEv->control;
+            void *payload = contEv->payload;
+
+            if(contEv->control == POTENCIA) {
+                me->state.control.potencia = (int) payload;
+            } else if(contEv->control == CILINDRO) {
+                me->state.control.cilindro = (int) payload;
+            } else if(contEv->control == TURBINA) {
+                me->state.control.turbina = (ControlToggle) payload;
+            } else if(contEv->control == RESFRIADOR) {
+                me->state.control.resfriador = (ControlToggle) payload;
+            }
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::SENSOR_DATA} */
+        case SENSOR_DATA_SIG: {
+            SensorDataEvt *sensorEv = Q_EVT_CAST(SensorDataEvt);
+
+            SensorType type = sensorEv->type;
+            int value = sensorEv->value;
+            int delta = sensorEv->delta;
+
+            if(type == SENSOR_GRAO) {
+                char graoStr[6] = {0};
+                sprintf(graoStr, "%d C", value);
+                postUart_setString(SENSOR_GRAO_TEXT_VP, graoStr, true, SENSOR_GRAO_TEXT_LEN);
+
+                char graoDeltaStr[6] = {0};
+                sprintf(graoDeltaStr, "%d", delta);
+                postUart_setString(DELTA_GRAO_TEXT_VP, graoDeltaStr, true, DELTA_GRAO_TEXT_LEN);
+            } else if(sensorEv->type == SENSOR_AR) {
+                char arStr[6] = {0};
+                sprintf(arStr, "%d C", value);
+                postUart_setString(SENSOR_AR_TEXT_VP, arStr, true, SENSOR_AR_TEXT_LEN);
+
+                char arDeltaStr[6] = {0};
+                sprintf(arDeltaStr, "%d", delta);
+                postUart_setString(DELTA_AR_TEXT_VP, arDeltaStr, true, DELTA_AR_TEXT_LEN);
+            } else if(sensorEv->type == SENSOR_GAS) {
+                char gasStr[6] = {0};
+                sprintf(gasStr, "%d", value);
+                postUart_setString(SENSOR_GAS_TEXT_VP, gasStr, true, SENSOR_GAS_TEXT_LEN);
+            }
+            status_ = Q_HANDLED();
+            break;
+        }
+        default: {
+            status_ = Q_SUPER(&Ihm_manual_mode);
+            break;
+        }
+    }
+    return status_;
+}
+
+/*${AOs::Ihm::SM::manual_mode::manual_events::manual_page} .................*/
+static QState Ihm_manual_page(Ihm * const me, QEvt const * const e) {
+    QState status_;
+    switch (e->sig) {
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page} */
+        case Q_ENTRY_SIG: {
+            Ihm_setupPageManualMode();
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page} */
+        case Q_EXIT_SIG: {
+            /* save deep history */
+            me->hist_manual_page = QHsm_state(Q_HSM_UPCAST(me));
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::CHART_DATA} */
+        case CHART_DATA_SIG: {
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::IHM_INPUT_TOUCH} */
+        case IHM_INPUT_TOUCH_SIG: {
+            IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);
+            /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::IHM_INPUT_TOUCH::[ihmEv->length==4]} */
+            if (ihmEv->length == 4) {
+                status_ = Q_TRAN(&Ihm_manual_controls);
+            }
+            /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::IHM_INPUT_TOUCH::[ihmEv->length==2]} */
+            else if (ihmEv->length == 2) {
+                status_ = Q_TRAN(&Ihm_manual_config);
+            }
+            /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::IHM_INPUT_TOUCH::[ihmEv->length==3]} */
+            else if (ihmEv->length == 3) {
+                RequestNextStageEvt *stageEv = Q_NEW(RequestNextStageEvt, REQUEST_NEXT_STAGE_SIG);
+                QACTIVE_POST(AO_DataBroker, &stageEv->super, me);
+                status_ = Q_HANDLED();
+            }
+            else {
+                status_ = Q_UNHANDLED();
+            }
+            break;
+        }
+        default: {
+            status_ = Q_SUPER(&Ihm_manual_events);
+            break;
+        }
+    }
+    return status_;
+}
+
+/*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::idle} ...........*/
+static QState Ihm_idle(Ihm * const me, QEvt const * const e) {
+    QState status_;
+    switch (e->sig) {
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::idle} */
+        case Q_ENTRY_SIG: {
+            ESP_LOGD(TAG, "[MANUAL_MODE][IDLE][ENTRY]");
+
+            postUart_setIcon(NAVBAR_ICON_HOME_VP, 1);
+            postUart_setIcon(NAVBAR_ICON_GEAR_VP, 1);
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::idle} */
+        case Q_EXIT_SIG: {
+            ESP_LOGD(TAG, "[MANUAL_MODE][IDLE][EXIT]");
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::idle::IHM_INPUT_TOUCH} */
+        case IHM_INPUT_TOUCH_SIG: {
+            IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);
+            /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::idle::IHM_INPUT_TOUCH::[ihmEv->length==3]} */
+            if (ihmEv->length == 3) {
+                status_ = Q_TRAN(&Ihm_warn_new);
+            }
+            /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::idle::IHM_INPUT_TOUCH::[ihmEv->length==1]} */
+            else if (ihmEv->length == 1) {
+                status_ = Q_TRAN(&Ihm_main_menu);
+            }
+            else {
+                status_ = Q_UNHANDLED();
+            }
+            break;
+        }
+        default: {
+            status_ = Q_SUPER(&Ihm_manual_page);
+            break;
+        }
+    }
+    return status_;
+}
+
+/*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active} .........*/
+static QState Ihm_active(Ihm * const me, QEvt const * const e) {
+    QState status_;
+    switch (e->sig) {
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active} */
+        case Q_ENTRY_SIG: {
+            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][ENTRY]");
+
+            postUart_setIcon(NAVBAR_ICON_HOME_VP, 0);
+            postUart_setIcon(NAVBAR_ICON_GEAR_VP, 1);
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active} */
+        case Q_EXIT_SIG: {
+            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][EXIT]");
+            status_ = Q_HANDLED();
+            break;
+        }
+        default: {
+            status_ = Q_SUPER(&Ihm_manual_page);
+            break;
+        }
+    }
+    return status_;
+}
+
+/*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::pre_heating}*/
+static QState Ihm_pre_heating(Ihm * const me, QEvt const * const e) {
+    QState status_;
+    switch (e->sig) {
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::pre_heating} */
+        case Q_ENTRY_SIG: {
+            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][PRE_HEATING][ENTRY]");
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::pre_heating} */
+        case Q_EXIT_SIG: {
+            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][PRE_HEATING][EXIT]");
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::pre_heating::NOTIFY_NEXT_STAGE} */
+        case NOTIFY_NEXT_STAGE_SIG: {
+            QHSM_DISPATCH((QHsm *)&me->stage, e, me->super.prio);
+            status_ = Q_TRAN(&Ihm_roasting);
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::pre_heating::SENSOR_DATA} */
+        case SENSOR_DATA_SIG: {
+            /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::pre_heating::SENSOR_DATA::[false]} */
+            if (false) {
+                ESP_LOGD(TAG, "Sensor data here!");
+                status_ = Q_HANDLED();
+            }
+            else {
+                status_ = Q_UNHANDLED();
+            }
+            break;
+        }
+        default: {
+            status_ = Q_SUPER(&Ihm_active);
+            break;
+        }
+    }
+    return status_;
+}
+
+/*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::chart} ..*/
+static QState Ihm_chart(Ihm * const me, QEvt const * const e) {
+    QState status_;
+    switch (e->sig) {
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::chart} */
+        case Q_ENTRY_SIG: {
+            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][CHART][ENTRY]");
+
+            QTimeEvt_armX(&me->stageTimerEvt, STAGE_TIMER_INTERVAL, 0U);
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::chart} */
+        case Q_EXIT_SIG: {
+            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][CHART][EXIT]");
+
+            QTimeEvt_disarm(&me->stageTimerEvt);
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::chart::IHM_STAGE_TIMER_TIMEOUT} */
+        case IHM_STAGE_TIMER_TIMEOUT_SIG: {
+            QHSM_DISPATCH((QHsm *)&me->stage, e, me->super.prio);
+
+            QTimeEvt_rearm(&me->stageTimerEvt, STAGE_TIMER_INTERVAL);
+            status_ = Q_HANDLED();
+            break;
+        }
+        default: {
+            status_ = Q_SUPER(&Ihm_active);
+            break;
+        }
+    }
+    return status_;
+}
+
+/*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::chart::roasting}*/
+static QState Ihm_roasting(Ihm * const me, QEvt const * const e) {
+    QState status_;
+    switch (e->sig) {
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::chart::roasting} */
+        case Q_ENTRY_SIG: {
+            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][CHART][ROASTING][ENTRY]");
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::chart::roasting} */
+        case Q_EXIT_SIG: {
+            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][CHART][ROASTING][EXIT]");
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::chart::roasting::NOTIFY_NEXT_STAGE} */
+        case NOTIFY_NEXT_STAGE_SIG: {
+            QHSM_DISPATCH((QHsm *)&me->stage, e, me->super.prio);
+            status_ = Q_TRAN(&Ihm_cooling);
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::chart::roasting::IHM_INPUT_TOUCH} */
+        case IHM_INPUT_TOUCH_SIG: {
+            IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);
+            /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::chart::roasting::IHM_INPUT_TOUCH::[SUBSTAGE]} */
+            if (ihmEv->length == 5) {
+                status_ = Q_HANDLED();
+            }
+            else {
+                status_ = Q_UNHANDLED();
+            }
+            break;
+        }
+        default: {
+            status_ = Q_SUPER(&Ihm_chart);
+            break;
+        }
+    }
+    return status_;
+}
+
+/*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::chart::cooling}*/
+static QState Ihm_cooling(Ihm * const me, QEvt const * const e) {
+    QState status_;
+    switch (e->sig) {
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::chart::cooling} */
+        case Q_ENTRY_SIG: {
+            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][CHART][COOLING][ENTRY]");
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::chart::cooling} */
+        case Q_EXIT_SIG: {
+            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][CHART][ROASTING][EXIT]");
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::chart::cooling::NOTIFY_NEXT_STAGE} */
+        case NOTIFY_NEXT_STAGE_SIG: {
+            status_ = Q_TRAN(&Ihm_summary);
+            break;
+        }
+        default: {
+            status_ = Q_SUPER(&Ihm_chart);
+            break;
+        }
+    }
+    return status_;
+}
+
+/*${AOs::Ihm::SM::manual_mode::manual_events::manual_controls} .............*/
+static QState Ihm_manual_controls(Ihm * const me, QEvt const * const e) {
+    QState status_;
+    switch (e->sig) {
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_controls} */
+        case Q_ENTRY_SIG: {
+            ESP_LOGD(TAG, "[MANUAL_MODE][CONTROLS}[ENTRY]");
+            Ihm_setupPageControls();
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_controls} */
+        case Q_EXIT_SIG: {
+            ESP_LOGD(TAG, "[MANUAL_MODE][CONTROLS}[EXIT]");
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_controls::IHM_INPUT_TOUCH} */
+        case IHM_INPUT_TOUCH_SIG: {
+            IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);
+            /*${AOs::Ihm::SM::manual_mode::manual_events::manual_controls::IHM_INPUT_TOUCH::[ihmEv->length==2]} */
+            if (ihmEv->length == 2) {
+                status_ = Q_TRAN_HIST(me->hist_manual_page);
+            }
+            /*${AOs::Ihm::SM::manual_mode::manual_events::manual_controls::IHM_INPUT_TOUCH::[RESFRIADOR]} */
+            else if (ihmEv->length == 3) {
+                status_ = Q_HANDLED();
+            }
+            /*${AOs::Ihm::SM::manual_mode::manual_events::manual_controls::IHM_INPUT_TOUCH::[TURBINA]} */
+            else if (ihmEv->length == 4) {
+                status_ = Q_HANDLED();
+            }
+            else {
+                status_ = Q_UNHANDLED();
+            }
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_controls::IHM_INPUT_SLIDER} */
+        case IHM_INPUT_SLIDER_SIG: {
+            IhmInputSliderEvt *ihmEv = Q_EVT_CAST(IhmInputSliderEvt);
+            UpdateControlEvt *contEv = Q_NEW(UpdateControlEvt, UPDATE_CONTROL_SIG);
+
+            uint8_t value = ihmEv->value;
+            uint8_t icon = ceil(value / 5);
+
+            ESP_LOGE(TAG, "%d, %d, %d", ihmEv->control, value, icon);
+
+            if(ihmEv->control == POTENCIA) {
+                //me->control_potencia = value;
+                char potStr[100] = {0};
+                itoa(value, potStr, 10);
+
+                postUart_setString(CONTROL_POTENCIA_TEXT_VP, potStr, true, CONTROL_POTENCIA_TEXT_LEN);
+                postUart_setIcon(CONTROL_POTENCIA_ICON_VP, icon);
+            } else if(ihmEv->control == CILINDRO) {
+                char cilStr[100] = {0};
+                itoa(value, cilStr, 10);
+
+                postUart_setString(CONTROL_CILINDRO_TEXT_VP, cilStr, true, CONTROL_POTENCIA_TEXT_LEN);
+                postUart_setIcon(CONTROL_CILINDRO_ICON_VP, icon);
+            }
+            status_ = Q_HANDLED();
+            break;
+        }
+        default: {
+            status_ = Q_SUPER(&Ihm_manual_events);
+            break;
+        }
+    }
+    return status_;
+}
+
+/*${AOs::Ihm::SM::manual_mode::summary} ....................................*/
+static QState Ihm_summary(Ihm * const me, QEvt const * const e) {
+    QState status_;
+    switch (e->sig) {
+        /*${AOs::Ihm::SM::manual_mode::summary} */
+        case Q_ENTRY_SIG: {
+            ESP_LOGD(TAG, "[SUMMARY][ENTRY]");
+
+            Ihm_setupPageSummary();
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::summary} */
+        case Q_EXIT_SIG: {
+            ESP_LOGD(TAG, "[SUMMARY][EXIT]");
+            status_ = Q_HANDLED();
+            break;
+        }
+        default: {
+            status_ = Q_SUPER(&Ihm_manual_mode);
+            break;
+        }
+    }
+    return status_;
+}
+
 /*${AOs::Ihm::SM::manual_mode::warn_new} ...................................*/
 static QState Ihm_warn_new(Ihm * const me, QEvt const * const e) {
     QState status_;
@@ -757,378 +1253,6 @@ static QState Ihm_warn_new(Ihm * const me, QEvt const * const e) {
         case NOTIFY_NEXT_STAGE_SIG: {
             QHSM_DISPATCH((QHsm *)&me->stage, e, me->super.prio);
             status_ = Q_TRAN(&Ihm_pre_heating);
-            break;
-        }
-        default: {
-            status_ = Q_SUPER(&Ihm_manual_mode);
-            break;
-        }
-    }
-    return status_;
-}
-
-/*${AOs::Ihm::SM::manual_mode::manual_page} ................................*/
-static QState Ihm_manual_page(Ihm * const me, QEvt const * const e) {
-    QState status_;
-    switch (e->sig) {
-        /*${AOs::Ihm::SM::manual_mode::manual_page} */
-        case Q_ENTRY_SIG: {
-            Ihm_setupPageManualMode();
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page} */
-        case Q_EXIT_SIG: {
-            /* save deep history */
-            me->hist_manual_page = QHsm_state(Q_HSM_UPCAST(me));
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page::CONTROL_DATA} */
-        case CONTROL_DATA_SIG: {
-            ControlDataEvt *contEv = Q_EVT_CAST(ControlDataEvt);
-
-            ControlType control = contEv->control;
-            void *payload = contEv->payload;
-
-            if(contEv->control == POTENCIA) {
-                me->state.control.potencia = (int) payload;
-            } else if(contEv->control == CILINDRO) {
-                me->state.control.cilindro = (int) payload;
-            } else if(contEv->control == TURBINA) {
-                me->state.control.turbina = (ControlToggle) payload;
-            } else if(contEv->control == RESFRIADOR) {
-                me->state.control.resfriador = (ControlToggle) payload;
-            }
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page::SENSOR_DATA} */
-        case SENSOR_DATA_SIG: {
-            SensorDataEvt *sensorEv = Q_EVT_CAST(SensorDataEvt);
-
-            SensorType type = sensorEv->type;
-            int value = sensorEv->value;
-            int delta = sensorEv->delta;
-
-            if(type == SENSOR_GRAO) {
-                char graoStr[6] = {0};
-                sprintf(graoStr, "%d C", value);
-                postUart_setString(SENSOR_GRAO_TEXT_VP, graoStr, true, SENSOR_GRAO_TEXT_LEN);
-
-                char graoDeltaStr[6] = {0};
-                sprintf(graoDeltaStr, "%d", delta);
-                postUart_setString(DELTA_GRAO_TEXT_VP, graoDeltaStr, true, DELTA_GRAO_TEXT_LEN);
-            } else if(sensorEv->type == SENSOR_AR) {
-                char arStr[6] = {0};
-                sprintf(arStr, "%d C", value);
-                postUart_setString(SENSOR_AR_TEXT_VP, arStr, true, SENSOR_AR_TEXT_LEN);
-
-                char arDeltaStr[6] = {0};
-                sprintf(arDeltaStr, "%d", delta);
-                postUart_setString(DELTA_AR_TEXT_VP, arDeltaStr, true, DELTA_AR_TEXT_LEN);
-            } else if(sensorEv->type == SENSOR_GAS) {
-                char gasStr[6] = {0};
-                sprintf(gasStr, "%d", value);
-                postUart_setString(SENSOR_GAS_TEXT_VP, gasStr, true, SENSOR_GAS_TEXT_LEN);
-            }
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page::CHART_DATA} */
-        case CHART_DATA_SIG: {
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page::IHM_INPUT_TOUCH} */
-        case IHM_INPUT_TOUCH_SIG: {
-            IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);
-            /*${AOs::Ihm::SM::manual_mode::manual_page::IHM_INPUT_TOUCH::[ihmEv->length==4]} */
-            if (ihmEv->length == 4) {
-                status_ = Q_TRAN(&Ihm_manual_controls);
-            }
-            /*${AOs::Ihm::SM::manual_mode::manual_page::IHM_INPUT_TOUCH::[ihmEv->length==2]} */
-            else if (ihmEv->length == 2) {
-                status_ = Q_TRAN(&Ihm_manual_config);
-            }
-            /*${AOs::Ihm::SM::manual_mode::manual_page::IHM_INPUT_TOUCH::[ihmEv->length==3]} */
-            else if (ihmEv->length == 3) {
-                RequestNextStageEvt *stageEv = Q_NEW(RequestNextStageEvt, REQUEST_NEXT_STAGE_SIG);
-                QACTIVE_POST(AO_DataBroker, &stageEv->super, me);
-                status_ = Q_HANDLED();
-            }
-            else {
-                status_ = Q_UNHANDLED();
-            }
-            break;
-        }
-        default: {
-            status_ = Q_SUPER(&Ihm_manual_mode);
-            break;
-        }
-    }
-    return status_;
-}
-
-/*${AOs::Ihm::SM::manual_mode::manual_page::idle} ..........................*/
-static QState Ihm_idle(Ihm * const me, QEvt const * const e) {
-    QState status_;
-    switch (e->sig) {
-        /*${AOs::Ihm::SM::manual_mode::manual_page::idle} */
-        case Q_ENTRY_SIG: {
-            ESP_LOGD(TAG, "[MANUAL_MODE][IDLE][ENTRY]");
-
-            postUart_setIcon(NAVBAR_ICON_HOME_VP, 1);
-            postUart_setIcon(NAVBAR_ICON_GEAR_VP, 1);
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page::idle} */
-        case Q_EXIT_SIG: {
-            ESP_LOGD(TAG, "[MANUAL_MODE][IDLE][EXIT]");
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page::idle::IHM_INPUT_TOUCH} */
-        case IHM_INPUT_TOUCH_SIG: {
-            IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);
-            /*${AOs::Ihm::SM::manual_mode::manual_page::idle::IHM_INPUT_TOUCH::[ihmEv->length==3]} */
-            if (ihmEv->length == 3) {
-                status_ = Q_TRAN(&Ihm_warn_new);
-            }
-            /*${AOs::Ihm::SM::manual_mode::manual_page::idle::IHM_INPUT_TOUCH::[ihmEv->length==1]} */
-            else if (ihmEv->length == 1) {
-                status_ = Q_TRAN(&Ihm_main_menu);
-            }
-            else {
-                status_ = Q_UNHANDLED();
-            }
-            break;
-        }
-        default: {
-            status_ = Q_SUPER(&Ihm_manual_page);
-            break;
-        }
-    }
-    return status_;
-}
-
-/*${AOs::Ihm::SM::manual_mode::manual_page::active} ........................*/
-static QState Ihm_active(Ihm * const me, QEvt const * const e) {
-    QState status_;
-    switch (e->sig) {
-        /*${AOs::Ihm::SM::manual_mode::manual_page::active} */
-        case Q_ENTRY_SIG: {
-            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][ENTRY]");
-
-            postUart_setIcon(NAVBAR_ICON_HOME_VP, 0);
-            postUart_setIcon(NAVBAR_ICON_GEAR_VP, 1);
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page::active} */
-        case Q_EXIT_SIG: {
-            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][EXIT]");
-            status_ = Q_HANDLED();
-            break;
-        }
-        default: {
-            status_ = Q_SUPER(&Ihm_manual_page);
-            break;
-        }
-    }
-    return status_;
-}
-
-/*${AOs::Ihm::SM::manual_mode::manual_page::active::pre_heating} ...........*/
-static QState Ihm_pre_heating(Ihm * const me, QEvt const * const e) {
-    QState status_;
-    switch (e->sig) {
-        /*${AOs::Ihm::SM::manual_mode::manual_page::active::pre_heating} */
-        case Q_ENTRY_SIG: {
-            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][PRE_HEATING][ENTRY]");
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page::active::pre_heating} */
-        case Q_EXIT_SIG: {
-            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][PRE_HEATING][EXIT]");
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page::active::pre_heating::NOTIFY_NEXT_STAGE} */
-        case NOTIFY_NEXT_STAGE_SIG: {
-            QHSM_DISPATCH((QHsm *)&me->stage, e, me->super.prio);
-            status_ = Q_TRAN(&Ihm_roasting);
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page::active::pre_heating::SENSOR_DATA} */
-        case SENSOR_DATA_SIG: {
-            /*${AOs::Ihm::SM::manual_mode::manual_page::active::pre_heating::SENSOR_DATA::[false]} */
-            if (false) {
-                ESP_LOGD(TAG, "Sensor data here!");
-                status_ = Q_HANDLED();
-            }
-            else {
-                status_ = Q_UNHANDLED();
-            }
-            break;
-        }
-        default: {
-            status_ = Q_SUPER(&Ihm_active);
-            break;
-        }
-    }
-    return status_;
-}
-
-/*${AOs::Ihm::SM::manual_mode::manual_page::active::chart} .................*/
-static QState Ihm_chart(Ihm * const me, QEvt const * const e) {
-    QState status_;
-    switch (e->sig) {
-        /*${AOs::Ihm::SM::manual_mode::manual_page::active::chart} */
-        case Q_ENTRY_SIG: {
-            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][CHART][ENTRY]");
-
-            QTimeEvt_armX(&me->stageTimerEvt, STAGE_TIMER_INTERVAL, 0U);
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page::active::chart} */
-        case Q_EXIT_SIG: {
-            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][CHART][EXIT]");
-
-            QTimeEvt_disarm(&me->stageTimerEvt);
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page::active::chart::IHM_STAGE_TIMER_TIMEOUT} */
-        case IHM_STAGE_TIMER_TIMEOUT_SIG: {
-            QHSM_DISPATCH((QHsm *)&me->stage, e, me->super.prio);
-
-            QTimeEvt_rearm(&me->stageTimerEvt, STAGE_TIMER_INTERVAL);
-            status_ = Q_HANDLED();
-            break;
-        }
-        default: {
-            status_ = Q_SUPER(&Ihm_active);
-            break;
-        }
-    }
-    return status_;
-}
-
-/*${AOs::Ihm::SM::manual_mode::manual_page::active::chart::roasting} .......*/
-static QState Ihm_roasting(Ihm * const me, QEvt const * const e) {
-    QState status_;
-    switch (e->sig) {
-        /*${AOs::Ihm::SM::manual_mode::manual_page::active::chart::roasting} */
-        case Q_ENTRY_SIG: {
-            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][CHART][ROASTING][ENTRY]");
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page::active::chart::roasting} */
-        case Q_EXIT_SIG: {
-            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][CHART][ROASTING][EXIT]");
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page::active::chart::roasting::NOTIFY_NEXT_STAGE} */
-        case NOTIFY_NEXT_STAGE_SIG: {
-            QHSM_DISPATCH((QHsm *)&me->stage, e, me->super.prio);
-            status_ = Q_TRAN(&Ihm_cooling);
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page::active::chart::roasting::IHM_INPUT_TOUCH} */
-        case IHM_INPUT_TOUCH_SIG: {
-            IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);
-            /*${AOs::Ihm::SM::manual_mode::manual_page::active::chart::roasting::IHM_INPUT_TOUCH::[SUBSTAGE]} */
-            if (ihmEv->length == 5) {
-                status_ = Q_HANDLED();
-            }
-            else {
-                status_ = Q_UNHANDLED();
-            }
-            break;
-        }
-        default: {
-            status_ = Q_SUPER(&Ihm_chart);
-            break;
-        }
-    }
-    return status_;
-}
-
-/*${AOs::Ihm::SM::manual_mode::manual_page::active::chart::cooling} ........*/
-static QState Ihm_cooling(Ihm * const me, QEvt const * const e) {
-    QState status_;
-    switch (e->sig) {
-        /*${AOs::Ihm::SM::manual_mode::manual_page::active::chart::cooling} */
-        case Q_ENTRY_SIG: {
-            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][CHART][COOLING][ENTRY]");
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page::active::chart::cooling} */
-        case Q_EXIT_SIG: {
-            ESP_LOGD(TAG, "[MANUAL_MODE][ACTIVE][CHART][ROASTING][EXIT]");
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_page::active::chart::cooling::NOTIFY_NEXT_STAGE} */
-        case NOTIFY_NEXT_STAGE_SIG: {
-            status_ = Q_TRAN(&Ihm_summary);
-            break;
-        }
-        default: {
-            status_ = Q_SUPER(&Ihm_chart);
-            break;
-        }
-    }
-    return status_;
-}
-
-/*${AOs::Ihm::SM::manual_mode::manual_controls} ............................*/
-static QState Ihm_manual_controls(Ihm * const me, QEvt const * const e) {
-    QState status_;
-    switch (e->sig) {
-        default: {
-            status_ = Q_SUPER(&Ihm_manual_mode);
-            break;
-        }
-    }
-    return status_;
-}
-
-/*${AOs::Ihm::SM::manual_mode::manual_config} ..............................*/
-static QState Ihm_manual_config(Ihm * const me, QEvt const * const e) {
-    QState status_;
-    switch (e->sig) {
-        /*${AOs::Ihm::SM::manual_mode::manual_config} */
-        case Q_ENTRY_SIG: {
-            ESP_LOGD(TAG, "[CONFIG][ENTRY]");
-
-            Ihm_setupPageConfig();
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_config} */
-        case Q_EXIT_SIG: {
-            ESP_LOGD(TAG, "[CONFIG][EXIT]");
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::manual_mode::manual_config::IHM_INPUT_TOUCH} */
-        case IHM_INPUT_TOUCH_SIG: {
-            IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);
-            /*${AOs::Ihm::SM::manual_mode::manual_config::IHM_INPUT_TOUCH::[ihmEv->length==3]} */
-            if (ihmEv->length == 3) {
-                status_ = Q_TRAN_HIST(me->hist_manual_page);
-            }
-            else {
-                status_ = Q_UNHANDLED();
-            }
             break;
         }
         default: {
@@ -1211,32 +1335,6 @@ static QState Ihm_recipes(Ihm * const me, QEvt const * const e) {
 static QState Ihm_roasts(Ihm * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        default: {
-            status_ = Q_SUPER(&QHsm_top);
-            break;
-        }
-    }
-    return status_;
-}
-
-/*${AOs::Ihm::SM::summary} .................................................*/
-static QState Ihm_summary(Ihm * const me, QEvt const * const e) {
-    QState status_;
-    switch (e->sig) {
-        /*${AOs::Ihm::SM::summary} */
-        case Q_ENTRY_SIG: {
-            ESP_LOGD(TAG, "[SUMMARY][ENTRY]");
-
-            Ihm_setupPageSummary();
-            status_ = Q_HANDLED();
-            break;
-        }
-        /*${AOs::Ihm::SM::summary} */
-        case Q_EXIT_SIG: {
-            ESP_LOGD(TAG, "[SUMMARY][EXIT]");
-            status_ = Q_HANDLED();
-            break;
-        }
         default: {
             status_ = Q_SUPER(&QHsm_top);
             break;
