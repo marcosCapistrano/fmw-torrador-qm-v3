@@ -138,6 +138,7 @@ typedef struct {
 /* protected: */
 static QState IhmSubstage_initial(IhmSubstage * const me, void const * const par);
 static QState IhmSubstage_idle(IhmSubstage * const me, QEvt const * const e);
+static QState IhmSubstage_state1(IhmSubstage * const me, QEvt const * const e);
 static QState IhmSubstage_q1(IhmSubstage * const me, QEvt const * const e);
 static QState IhmSubstage_f(IhmSubstage * const me, QEvt const * const e);
 static QState IhmSubstage_q2(IhmSubstage * const me, QEvt const * const e);
@@ -481,7 +482,7 @@ static QState IhmSubstage_idle(IhmSubstage * const me, QEvt const * const e) {
         }
         /*${Components::IhmSubstage::SM::idle::NOTIFY_NEXT_SUBSTAGE} */
         case NOTIFY_NEXT_SUBSTAGE_SIG: {
-            status_ = Q_TRAN(&IhmSubstage_f);
+            status_ = Q_TRAN(&IhmSubstage_state1);
             break;
         }
         default: {
@@ -492,33 +493,55 @@ static QState IhmSubstage_idle(IhmSubstage * const me, QEvt const * const e) {
     return status_;
 }
 
-/*${Components::IhmSubstage::SM::q1} .......................................*/
+/*${Components::IhmSubstage::SM::state1} ...................................*/
+static QState IhmSubstage_state1(IhmSubstage * const me, QEvt const * const e) {
+    QState status_;
+    switch (e->sig) {
+        /*${Components::IhmSubstage::SM::state1::initial} */
+        case Q_INIT_SIG: {
+            status_ = Q_TRAN(&IhmSubstage_f);
+            break;
+        }
+        /*${Components::IhmSubstage::SM::state1::NOTIFY_SUBSTAGE_EXIT} */
+        case NOTIFY_SUBSTAGE_EXIT_SIG: {
+            status_ = Q_TRAN(&IhmSubstage_idle);
+            break;
+        }
+        default: {
+            status_ = Q_SUPER(&QHsm_top);
+            break;
+        }
+    }
+    return status_;
+}
+
+/*${Components::IhmSubstage::SM::state1::q1} ...............................*/
 static QState IhmSubstage_q1(IhmSubstage * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${Components::IhmSubstage::SM::q1} */
+        /*${Components::IhmSubstage::SM::state1::q1} */
         case Q_ENTRY_SIG: {
             ESP_LOGD(TAG, "[SUBSTAGE][Q1][ENTRY]");
 
-            postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 4);
+            postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 2);
             status_ = Q_HANDLED();
             break;
         }
-        /*${Components::IhmSubstage::SM::q1} */
+        /*${Components::IhmSubstage::SM::state1::q1} */
         case Q_EXIT_SIG: {
             ESP_LOGD(TAG, "[SUBSTAGE][PRE_HEATING][EXIT]");
             status_ = Q_HANDLED();
             break;
         }
-        /*${Components::IhmSubstage::SM::q1::NOTIFY_NEXT_SUBSTAGE} */
+        /*${Components::IhmSubstage::SM::state1::q1::NOTIFY_NEXT_SUBSTAGE} */
         case NOTIFY_NEXT_SUBSTAGE_SIG: {
             status_ = Q_TRAN(&IhmSubstage_q2);
             break;
         }
-        /*${Components::IhmSubstage::SM::q1::IHM_INPUT_TOUCH} */
+        /*${Components::IhmSubstage::SM::state1::q1::IHM_INPUT_TOUCH} */
         case IHM_INPUT_TOUCH_SIG: {
             IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);
-            /*${Components::IhmSubstage::SM::q1::IHM_INPUT_TOUCH::[ihmEv->length==5]} */
+            /*${Components::IhmSubstage::SM::state1::q1::IHM_INPUT_TOUCH::[ihmEv->length==5]} */
             if (ihmEv->length == 5) {
                 RequestNextSubstageEvt *stageEv = Q_NEW(RequestNextSubstageEvt, REQUEST_NEXT_SUBSTAGE_SIG);
                 stageEv->substage = Q2;
@@ -531,40 +554,40 @@ static QState IhmSubstage_q1(IhmSubstage * const me, QEvt const * const e) {
             break;
         }
         default: {
-            status_ = Q_SUPER(&QHsm_top);
+            status_ = Q_SUPER(&IhmSubstage_state1);
             break;
         }
     }
     return status_;
 }
 
-/*${Components::IhmSubstage::SM::f} ........................................*/
+/*${Components::IhmSubstage::SM::state1::f} ................................*/
 static QState IhmSubstage_f(IhmSubstage * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${Components::IhmSubstage::SM::f} */
+        /*${Components::IhmSubstage::SM::state1::f} */
         case Q_ENTRY_SIG: {
             ESP_LOGD(TAG, "[SUBSTAGE][F][ENTRY]");
 
-            postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 2);
+            postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 1);
             status_ = Q_HANDLED();
             break;
         }
-        /*${Components::IhmSubstage::SM::f} */
+        /*${Components::IhmSubstage::SM::state1::f} */
         case Q_EXIT_SIG: {
             ESP_LOGD(TAG, "[SUBSTAGE][F][EXIT]");
             status_ = Q_HANDLED();
             break;
         }
-        /*${Components::IhmSubstage::SM::f::NOTIFY_NEXT_SUBSTAGE} */
+        /*${Components::IhmSubstage::SM::state1::f::NOTIFY_NEXT_SUBSTAGE} */
         case NOTIFY_NEXT_SUBSTAGE_SIG: {
             status_ = Q_TRAN(&IhmSubstage_q1);
             break;
         }
-        /*${Components::IhmSubstage::SM::f::IHM_INPUT_TOUCH} */
+        /*${Components::IhmSubstage::SM::state1::f::IHM_INPUT_TOUCH} */
         case IHM_INPUT_TOUCH_SIG: {
             IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);
-            /*${Components::IhmSubstage::SM::f::IHM_INPUT_TOUCH::[ihmEv->length==5]} */
+            /*${Components::IhmSubstage::SM::state1::f::IHM_INPUT_TOUCH::[ihmEv->length==5]} */
             if (ihmEv->length == 5) {
                 RequestNextSubstageEvt *stageEv = Q_NEW(RequestNextSubstageEvt, REQUEST_NEXT_SUBSTAGE_SIG);
                 stageEv->substage = Q1;
@@ -577,18 +600,18 @@ static QState IhmSubstage_f(IhmSubstage * const me, QEvt const * const e) {
             break;
         }
         default: {
-            status_ = Q_SUPER(&QHsm_top);
+            status_ = Q_SUPER(&IhmSubstage_state1);
             break;
         }
     }
     return status_;
 }
 
-/*${Components::IhmSubstage::SM::q2} .......................................*/
+/*${Components::IhmSubstage::SM::state1::q2} ...............................*/
 static QState IhmSubstage_q2(IhmSubstage * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
-        /*${Components::IhmSubstage::SM::q2} */
+        /*${Components::IhmSubstage::SM::state1::q2} */
         case Q_ENTRY_SIG: {
             ESP_LOGD(TAG, "[SUBSTAGE][Q2][ENTRY]");
 
@@ -596,20 +619,14 @@ static QState IhmSubstage_q2(IhmSubstage * const me, QEvt const * const e) {
             status_ = Q_HANDLED();
             break;
         }
-        /*${Components::IhmSubstage::SM::q2} */
+        /*${Components::IhmSubstage::SM::state1::q2} */
         case Q_EXIT_SIG: {
             ESP_LOGD(TAG, "[SUBSTAGE][COOLING][EXIT]");
             status_ = Q_HANDLED();
             break;
         }
-        /*${Components::IhmSubstage::SM::q2::NOTIFY_SUBSTAGE_EXIT} */
-        case NOTIFY_SUBSTAGE_EXIT_SIG: {
-            NotifyModeEvt *rme = Q_EVT_CAST(NotifyModeEvt);
-            status_ = Q_TRAN(&IhmSubstage_idle);
-            break;
-        }
         default: {
-            status_ = Q_SUPER(&QHsm_top);
+            status_ = Q_SUPER(&IhmSubstage_state1);
             break;
         }
     }
@@ -1637,6 +1654,9 @@ static QState Ihm_config(Ihm * const me, QEvt const * const e) {
             ESP_LOGD(TAG, "[CONFIG][ENTRY]");
 
             Ihm_setupPageConfig();
+
+            RequestConfigEvt *reqEv = Q_NEW(RequestConfigEvt, REQUEST_CONFIG_SIG);
+            QACTIVE_POST(AO_DataBroker, reqEv, me);
             status_ = Q_HANDLED();
             break;
         }
@@ -1656,6 +1676,16 @@ static QState Ihm_config(Ihm * const me, QEvt const * const e) {
             else {
                 status_ = Q_UNHANDLED();
             }
+            break;
+        }
+        /*${AOs::Ihm::SM::config::RESPONSE_CONFIG} */
+        case RESPONSE_CONFIG_SIG: {
+            ResponseConfigEvt *respEv = Q_EVT_CAST(ResponseConfigEvt);
+
+            //POST to uart
+            postUart_setNumber(CONFIG_PRE_HEAT_NUMBER_VP, respEv->pre_heat);
+            postUart_setNumber(CONFIG_ROAST_NUMBER_VP, respEv->roast);
+            status_ = Q_HANDLED();
             break;
         }
         default: {

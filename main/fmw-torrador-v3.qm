@@ -645,7 +645,7 @@ if(type == SENSOR_GRAO) {
         <action>IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);</action>
         <choice target="../../../3">
          <guard>ihmEv-&gt;length == 4</guard>
-         <choice_glyph conn="108,114,4,2,-17,-6,-2">
+         <choice_glyph conn="108,114,4,2,-17,-6,-3">
           <action box="1,0,10,2"/>
          </choice_glyph>
         </choice>
@@ -709,7 +709,7 @@ postUart_setIcon(NAVBAR_ICON_GEAR_VP, 1);</entry>
          <exit>ESP_LOGD(TAG, &quot;[MANUAL_MODE][ACTIVE][PRE_HEATING][EXIT]&quot;);</exit>
          <tran trig="NOTIFY_NEXT_STAGE" target="../../1/1">
           <action>QHSM_DISPATCH((QHsm *)&amp;me-&gt;stage, e, me-&gt;super.prio);</action>
-          <tran_glyph conn="165,142,1,3,7">
+          <tran_glyph conn="165,143,1,3,5,-1,2">
            <action box="0,-2,10,2"/>
           </tran_glyph>
          </tran>
@@ -717,15 +717,15 @@ postUart_setIcon(NAVBAR_ICON_GEAR_VP, 1);</entry>
           <choice>
            <guard>false</guard>
            <action>ESP_LOGD(TAG, &quot;Sensor data here!&quot;);</action>
-           <choice_glyph conn="144,149,5,-1,5">
+           <choice_glyph conn="144,150,5,-1,5">
             <action box="1,0,10,2"/>
            </choice_glyph>
           </choice>
-          <tran_glyph conn="135,149,3,-1,9">
+          <tran_glyph conn="135,150,3,-1,9">
            <action box="0,-2,10,2"/>
           </tran_glyph>
          </tran>
-         <state_glyph node="135,137,30,16">
+         <state_glyph node="135,138,30,16">
           <entry box="1,2,6,2"/>
           <exit box="1,4,6,2"/>
          </state_glyph>
@@ -823,7 +823,7 @@ Ihm_setupPageControls(me);</entry>
         <action>IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);</action>
         <choice target="../../../2" cpref="../../../2/0">
          <guard>ihmEv-&gt;length == 2</guard>
-         <choice_glyph conn="102,82,5,0,70,22">
+         <choice_glyph conn="102,81,5,0,70,23">
           <action box="1,0,10,2"/>
          </choice_glyph>
         </choice>
@@ -841,7 +841,7 @@ if(me-&gt;state.control.resfriador == TOGGLE_OFF) {
 }
 
 QACTIVE_POST(AO_DataBroker, contEv, me);</action>
-         <choice_glyph conn="102,82,4,-1,-7,-5">
+         <choice_glyph conn="102,81,4,-1,-7,-5">
           <action box="-13,-7,13,3"/>
          </choice_glyph>
         </choice>
@@ -863,11 +863,11 @@ if(me-&gt;state.control.turbina == TOGGLE_OFF) {
 }
 
 QACTIVE_POST(AO_DataBroker, contEv, me);</action>
-         <choice_glyph conn="102,82,4,-1,-7,4">
+         <choice_glyph conn="102,81,4,-1,-7,4">
           <action box="5,-6,10,2"/>
          </choice_glyph>
         </choice>
-        <tran_glyph conn="88,82,3,-1,14">
+        <tran_glyph conn="88,81,3,-1,14">
          <action box="0,-2,10,2"/>
         </tran_glyph>
        </tran>
@@ -889,7 +889,7 @@ if(ihmEv-&gt;control == POTENCIA) {
 }
 
 QACTIVE_POST(AO_DataBroker, contEv, me);</action>
-        <tran_glyph conn="88,86,3,-1,13">
+        <tran_glyph conn="88,85,3,-1,13">
          <action box="0,-2,18,2"/>
         </tran_glyph>
        </tran>
@@ -951,11 +951,11 @@ if(contEv-&gt;control == POTENCIA) {
 }
 
 </action>
-        <tran_glyph conn="88,90,3,-1,13">
+        <tran_glyph conn="88,89,3,-1,13">
          <action box="0,-2,10,2"/>
         </tran_glyph>
        </tran>
-       <state_glyph node="88,71,60,24">
+       <state_glyph node="88,70,60,24">
         <entry box="1,2,6,2"/>
         <exit box="1,4,6,2"/>
        </state_glyph>
@@ -987,7 +987,7 @@ QACTIVE_POST(AO_DataBroker, &amp;stageEv-&gt;super, me);</action>
       </tran>
       <tran trig="NOTIFY_NEXT_STAGE" target="../../3/2/4/0">
        <action>QHSM_DISPATCH((QHsm *)&amp;me-&gt;stage, e, me-&gt;super.prio);</action>
-       <tran_glyph conn="120,169,1,3,7,-23,8">
+       <tran_glyph conn="120,169,1,3,7,-22,8">
         <action box="0,-2,10,2"/>
        </tran_glyph>
       </tran>
@@ -1029,7 +1029,7 @@ QACTIVE_POST(AO_DataBroker, &amp;stageEv-&gt;super, me);</action>
       </tran>
       <tran trig="NOTIFY_NEXT_STAGE" target="../../3/2/4/0">
        <action>QHSM_DISPATCH((QHsm *)&amp;me-&gt;stage, e, me-&gt;super.prio);</action>
-       <tran_glyph conn="280,145,2,2,10,-127,-2">
+       <tran_glyph conn="280,145,2,2,10,-127,-1">
         <action box="0,-2,10,2"/>
        </tran_glyph>
       </tran>
@@ -1096,7 +1096,10 @@ QACTIVE_POST(AO_DataBroker, &amp;stageEv-&gt;super, me);</action>
     <state name="config">
      <entry>ESP_LOGD(TAG, &quot;[CONFIG][ENTRY]&quot;);
 
-Ihm_setupPageConfig();</entry>
+Ihm_setupPageConfig();
+
+RequestConfigEvt *reqEv = Q_NEW(RequestConfigEvt, REQUEST_CONFIG_SIG);
+QACTIVE_POST(AO_DataBroker, reqEv, me);</entry>
      <exit>ESP_LOGD(TAG, &quot;[CONFIG][EXIT]&quot;);</exit>
      <tran trig="IHM_INPUT_TOUCH">
       <action>IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);</action>
@@ -1108,6 +1111,16 @@ Ihm_setupPageConfig();</entry>
       </choice>
       <tran_glyph conn="215,25,3,-1,15">
        <action box="0,-2,10,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="RESPONSE_CONFIG">
+      <action>ResponseConfigEvt *respEv = Q_EVT_CAST(ResponseConfigEvt);
+
+//POST to uart
+postUart_setNumber(CONFIG_PRE_HEAT_NUMBER_VP, respEv-&gt;pre_heat);
+postUart_setNumber(CONFIG_ROAST_NUMBER_VP, respEv-&gt;roast);</action>
+      <tran_glyph conn="215,28,3,-1,20">
+       <action box="0,-2,19,2"/>
       </tran_glyph>
      </tran>
      <state_glyph node="215,13,36,26">
@@ -2774,8 +2787,8 @@ IhmStage_setTimer(me, true, false);</exit>
 
 postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 0);</entry>
      <exit>ESP_LOGD(TAG, &quot;[SUBSTAGE][IDLE][EXIT]&quot;);</exit>
-     <tran trig="NOTIFY_NEXT_SUBSTAGE" target="../../3">
-      <tran_glyph conn="37,11,1,3,30">
+     <tran trig="NOTIFY_NEXT_SUBSTAGE" target="../../2">
+      <tran_glyph conn="37,11,1,0,42,22">
        <action box="0,-2,23,2"/>
       </tran_glyph>
      </tran>
@@ -2784,83 +2797,90 @@ postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 0);</entry>
       <exit box="1,4,6,2"/>
      </state_glyph>
     </state>
-    <state name="q1">
-     <entry>ESP_LOGD(TAG, &quot;[SUBSTAGE][Q1][ENTRY]&quot;);
-
-postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 4);</entry>
-     <exit>ESP_LOGD(TAG, &quot;[SUBSTAGE][PRE_HEATING][EXIT]&quot;);</exit>
-     <tran trig="NOTIFY_NEXT_SUBSTAGE" target="../../4">
-      <tran_glyph conn="66,28,3,0,-13,0">
+    <state name="state1">
+     <initial target="../3">
+      <initial_glyph conn="79,37,5,0,-7,4">
+       <action box="0,-2,10,2"/>
+      </initial_glyph>
+     </initial>
+     <tran trig="NOTIFY_SUBSTAGE_EXIT" target="../../1">
+      <tran_glyph conn="22,33,0,2,-19">
        <action box="0,-2,10,2"/>
       </tran_glyph>
      </tran>
-     <tran trig="IHM_INPUT_TOUCH">
-      <action>IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);</action>
-      <choice>
-       <guard>ihmEv-&gt;length == 5</guard>
-       <action>RequestNextSubstageEvt *stageEv = Q_NEW(RequestNextSubstageEvt, REQUEST_NEXT_SUBSTAGE_SIG);
-stageEv-&gt;substage = Q2;
-QACTIVE_POST(AO_DataBroker, &amp;stageEv-&gt;super, me);</action>
-       <choice_glyph conn="77,32,5,-1,3">
-        <action box="1,0,10,2"/>
-       </choice_glyph>
-      </choice>
-      <tran_glyph conn="66,32,3,-1,11">
-       <action box="0,-2,10,2"/>
-      </tran_glyph>
-     </tran>
-     <state_glyph node="66,21,23,13">
-      <entry box="1,2,6,2"/>
-      <exit box="1,4,6,2"/>
-     </state_glyph>
-    </state>
-    <state name="f">
-     <entry>ESP_LOGD(TAG, &quot;[SUBSTAGE][F][ENTRY]&quot;);
+     <state name="q1">
+      <entry>ESP_LOGD(TAG, &quot;[SUBSTAGE][Q1][ENTRY]&quot;);
 
 postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 2);</entry>
-     <exit>ESP_LOGD(TAG, &quot;[SUBSTAGE][F][EXIT]&quot;);</exit>
-     <tran trig="NOTIFY_NEXT_SUBSTAGE" target="../../2">
-      <tran_glyph conn="78,16,2,0,5">
-       <action box="0,-2,10,2"/>
-      </tran_glyph>
-     </tran>
-     <tran trig="IHM_INPUT_TOUCH">
-      <action>IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);</action>
-      <choice>
-       <guard>ihmEv-&gt;length == 5</guard>
-       <action>RequestNextSubstageEvt *stageEv = Q_NEW(RequestNextSubstageEvt, REQUEST_NEXT_SUBSTAGE_SIG);
+      <exit>ESP_LOGD(TAG, &quot;[SUBSTAGE][PRE_HEATING][EXIT]&quot;);</exit>
+      <tran trig="NOTIFY_NEXT_SUBSTAGE" target="../../4">
+       <tran_glyph conn="35,48,3,1,-4">
+        <action box="0,-2,10,2"/>
+       </tran_glyph>
+      </tran>
+      <tran trig="IHM_INPUT_TOUCH">
+       <action>IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);</action>
+       <choice>
+        <guard>ihmEv-&gt;length == 5</guard>
+        <action>RequestNextSubstageEvt *stageEv = Q_NEW(RequestNextSubstageEvt, REQUEST_NEXT_SUBSTAGE_SIG);
+stageEv-&gt;substage = Q2;
+QACTIVE_POST(AO_DataBroker, &amp;stageEv-&gt;super, me);</action>
+        <choice_glyph conn="46,52,5,-1,3">
+         <action box="1,0,10,2"/>
+        </choice_glyph>
+       </choice>
+       <tran_glyph conn="35,52,3,-1,11">
+        <action box="0,-2,10,2"/>
+       </tran_glyph>
+      </tran>
+      <state_glyph node="35,41,23,13">
+       <entry box="1,2,6,2"/>
+       <exit box="1,4,6,2"/>
+      </state_glyph>
+     </state>
+     <state name="f">
+      <entry>ESP_LOGD(TAG, &quot;[SUBSTAGE][F][ENTRY]&quot;);
+
+postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 1);</entry>
+      <exit>ESP_LOGD(TAG, &quot;[SUBSTAGE][F][EXIT]&quot;);</exit>
+      <tran trig="NOTIFY_NEXT_SUBSTAGE" target="../../2">
+       <tran_glyph conn="62,46,3,1,-4">
+        <action box="0,-2,10,2"/>
+       </tran_glyph>
+      </tran>
+      <tran trig="IHM_INPUT_TOUCH">
+       <action>IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);</action>
+       <choice>
+        <guard>ihmEv-&gt;length == 5</guard>
+        <action>RequestNextSubstageEvt *stageEv = Q_NEW(RequestNextSubstageEvt, REQUEST_NEXT_SUBSTAGE_SIG);
 stageEv-&gt;substage = Q1;
 QACTIVE_POST(AO_DataBroker, &amp;stageEv-&gt;super, me);</action>
-       <choice_glyph conn="78,12,5,-1,3">
-        <action box="1,0,10,2"/>
-       </choice_glyph>
-      </choice>
-      <tran_glyph conn="67,12,3,-1,11">
-       <action box="0,-2,10,2"/>
-      </tran_glyph>
-     </tran>
-     <state_glyph node="67,3,22,13">
-      <entry box="1,2,6,2"/>
-      <exit box="1,4,6,2"/>
-     </state_glyph>
-    </state>
-    <state name="q2">
-     <entry>ESP_LOGD(TAG, &quot;[SUBSTAGE][Q2][ENTRY]&quot;);
+        <choice_glyph conn="73,50,5,-1,3">
+         <action box="1,0,10,2"/>
+        </choice_glyph>
+       </choice>
+       <tran_glyph conn="62,50,3,-1,11">
+        <action box="0,-2,10,2"/>
+       </tran_glyph>
+      </tran>
+      <state_glyph node="62,41,22,13">
+       <entry box="1,2,6,2"/>
+       <exit box="1,4,6,2"/>
+      </state_glyph>
+     </state>
+     <state name="q2">
+      <entry>ESP_LOGD(TAG, &quot;[SUBSTAGE][Q2][ENTRY]&quot;);
 
 postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 0);</entry>
-     <exit>ESP_LOGD(TAG, &quot;[SUBSTAGE][COOLING][EXIT]&quot;);</exit>
-     <tran trig="NOTIFY_SUBSTAGE_EXIT" target="../../1">
-      <action>NotifyModeEvt *rme = Q_EVT_CAST(NotifyModeEvt);</action>
-      <tran_glyph conn="29,28,3,2,-10,-14">
-       <action box="-12,-3,10,2"/>
-      </tran_glyph>
-     </tran>
-     <state_glyph node="29,21,24,13">
-      <entry box="1,2,6,2"/>
-      <exit box="1,4,6,2"/>
-     </state_glyph>
+      <exit>ESP_LOGD(TAG, &quot;[SUBSTAGE][COOLING][EXIT]&quot;);</exit>
+      <state_glyph node="7,41,24,13">
+       <entry box="1,2,6,2"/>
+       <exit box="1,4,6,2"/>
+      </state_glyph>
+     </state>
+     <state_glyph node="3,33,87,28"/>
     </state>
-    <state_diagram size="94,41"/>
+    <state_diagram size="99,71"/>
    </statechart>
   </class>
  </package>
