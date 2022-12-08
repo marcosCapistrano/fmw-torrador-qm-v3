@@ -195,13 +195,15 @@ static QState Perif_sensoring(Perif * const me, QEvt const * const e) {
                 QTimeEvt_rearm(&me->pwmTimeEvt, PWM_CHECK_INTERVAL);
             } else if(type == TURBINA) {
                 turbina_set_duty(value);
+            } else if(type == RESFRIADOR) {
+                resfriador_set_on(value);
             }
 
-            ControlDataEvt *contPot;
-            contPot = Q_NEW(ControlDataEvt, CONTROL_DATA_SIG);
-            contPot->control = type;
-            contPot->value = value;
-            QACTIVE_POST(AO_DataBroker, &contPot->super, me);
+            ControlDataEvt *contEv;
+            contEv = Q_NEW(ControlDataEvt, CONTROL_DATA_SIG);
+            contEv->control = type;
+            contEv->value = value;
+            QACTIVE_POST(AO_DataBroker, &contEv->super, me);
 
             status_ = Q_HANDLED();
             break;
@@ -393,10 +395,6 @@ static QState Perif_cooling(Perif * const me, QEvt const * const e) {
         /*${AOs::Perif::SM::cooling} */
         case Q_EXIT_SIG: {
             ESP_LOGD(TAG, "[COOLING][EXIT]");
-
-            if(get_resfriador_state()) {
-                resfriador_set_on(false);
-            }
             status_ = Q_HANDLED();
             break;
         }
@@ -423,6 +421,8 @@ static QState Perif_cooling(Perif * const me, QEvt const * const e) {
                 QTimeEvt_rearm(&me->pwmTimeEvt, PWM_CHECK_INTERVAL);
             } else if(type == TURBINA) {
                 turbina_set_duty(value);
+            } else if(type == RESFRIADOR) {
+                resfriador_set_on(value);
             }
 
             ControlDataEvt *contPot;

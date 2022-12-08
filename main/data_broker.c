@@ -50,16 +50,14 @@ typedef struct {
     Config config;
     RoastData curr_roast;
     RecipeData curr_recipe;
-
-/* public: */
     QTimeEvt recipeTimerEvt;
+    time_t timer_start;
 } DataBroker;
 
 /* private: */
 static void DataBroker_updateSensorData(DataBroker * const me,
     SensorType type,
     int value,
-    SensorData * sensorData,
     bool enqueue);
 static void DataBroker_setupRecipe(DataBroker * const me);
 static void DataBroker_resetData(DataBroker * const me);
@@ -106,99 +104,105 @@ QActive * const AO_DataBroker = &l_dataBroker.super;
 static void DataBroker_updateSensorData(DataBroker * const me,
     SensorType type,
     int value,
-    SensorData * sensorData,
     bool enqueue)
 {
-    /*
-    if(value > sensorData->max_temp) {
-       sensorData->max_temp = value;
-    } else if(value < sensorData->min_temp) {
-        sensorData->min_temp = value;
+    SensorData *data = &(me->curr_roast.sensor_data);
+    TempData *arData = &data->ar;
+    TempData *graoData = &data->grao;
+    int *max = &data->max;
+    int *min = &data->min;
+    int *max_delta = &data->max_delta;
+    int *min_delta = &data->min_delta;
+    int *grao_aux = &data->grao_aux;
+    int *ar_aux = &data->ar_aux;
+
+    if(value > *max) {
+       *max = value;
+    } else if(value < *min) {
+       *min = value;
     }
 
-    if(type == SENSOR_GRAO && sensorData->temps_grao_count > 0) {
-        int value_cmp = (value - sensorData->deltas_grao[sensorData->temps_grao_count-1])*10;
+    if(type == SENSOR_GRAO && graoData->count > 0) {
+        int value_cmp = (value - graoData->deltas[graoData->count-1])*10;
 
-        if(value_cmp > sensorData->max_temp_delta) {
-            sensorData->max_temp_delta = value_cmp;
-        } else if(value_cmp < sensorData->min_temp_delta) {
-            sensorData->min_temp_delta = value_cmp;
+        if(value_cmp > *max_delta) {
+           *max_delta = value_cmp;
+        } else if(value_cmp < *min_delta) {
+            *min_delta = value_cmp;
         }
-    } else if(type == SENSOR_AR && sensorData->temps_ar_count > 0) {
-        int value_cmp = (value - sensorData->deltas_ar[sensorData->temps_ar_count-1])*10;
+    } else if(type == SENSOR_AR && graoData->count > 0) {
+        int value_cmp = (value - graoData->deltas[graoData->count-1])*10;
 
-        if(value_cmp > sensorData->max_temp_delta) {
-            sensorData->max_temp_delta = value_cmp;
-        } else if(value_cmp < sensorData->min_temp_delta) {
-            sensorData->min_temp_delta = value_cmp;
+        if(value_cmp > *max_delta) {
+            *max_delta = value_cmp;
+        } else if(value_cmp < *min_delta) {
+            *min_delta = value_cmp;
         }
     }
 
     if(!enqueue) {
         if(type == SENSOR_GRAO) {
-            sensorData->temps_grao[0] = value;
-            sensorData->deltas_grao[0] = 0;
+            graoData->temps[0] = value;
+            graoData->deltas[0] = 0;
 
-            sensorData->temps_grao_count = 1;
+            graoData->count = 1;
         } else if(type == SENSOR_AR) {
-            sensorData->temps_ar[0] = value;
-            sensorData->deltas_ar[0] = 0;
+            arData->temps[0] = value;
+            arData->deltas[0] = 0;
 
-            sensorData->temps_ar_count = 1;
+            arData->count = 1;
         }
     } else {
         if(type == SENSOR_GRAO) {
-            if(sensorData->temps_grao_count < 31) {
-                int new_count = sensorData->temps_grao_count + 1;
-                sensorData->temps_grao_count = new_count;
-                sensorData->temps_grao[new_count-1] = value;
+            if(graoData->count < 31) {
+                int new_count = graoData->count+1;
+                graoData->count = new_count;
+                graoData->temps[new_count-1] = value;
 
-                if(sensorData->temps_grao_count > 1) {
-                    sensorData->deltas_grao[new_count-1] = value - sensorData->temps_grao[new_count-2];
-                } else if(sensorData->temps_grao_count == 1) {
-                    sensorData->deltas_grao[0] = 0;
+                if(graoData->count > 1) {
+                    graoData->deltas[new_count-1] = value - graoData->temps[new_count-2];
+                } else if(graoData->count == 1) {
+                    graoData->deltas[0] = 0;
                 }
             } else {
-                sensorData->temps_grao[DataBroker_aux_grao] = (sensorData->temps_grao[DataBroker_aux_grao] + sensorData->temps_grao[DataBroker_aux_grao+1]) / 2;
-                sensorData->deltas_grao[DataBroker_aux_grao] = (sensorData->deltas_grao[DataBroker_aux_grao] + sensorData->deltas_grao[DataBroker_aux_grao+1]) / 2;
-                for(int i=DataBroker_aux_grao+1; i < 30; i++) {
-                    sensorData->temps_grao[i] = sensorData->temps_grao[i+1];
-                    sensorData->deltas_grao[i] = sensorData->deltas_grao[i+1];
+                graoData->temps[*grao_aux] = (graoData->temps[*grao_aux] + graoData->temps[*grao_aux+1]) / 2;
+                graoData->deltas[*grao_aux] = (graoData->deltas[*grao_aux] + graoData->deltas[(*grao_aux)+1]) / 2;
+                for(int i=(*grao_aux)+1; i < 30; i++) {
+                    graoData->temps[i] = graoData->temps[i+1];
+                    graoData->deltas[i] = graoData->deltas[i+1];
                 }
-                sensorData->temps_grao[30] = value;
-                sensorData->deltas_grao[30] = value - sensorData->temps_grao[29];
+                graoData->temps[30] = value;
+                graoData->deltas[30] = value - graoData->temps[29];
 
-                DataBroker_aux_grao++;
-                DataBroker_aux_grao = DataBroker_aux_grao % 25;
+                (*grao_aux)++;
+                *grao_aux = (*grao_aux) % 25;
             }
         } else if(type == SENSOR_AR) {
-            if(sensorData->temps_ar_count < 31) {
-                int new_count = sensorData->temps_ar_count + 1;
-                sensorData->temps_ar_count = new_count;
-                sensorData->temps_ar[new_count-1] = value;
+            if(arData->count < 31) {
+                int new_count = arData->count + 1;
+                arData->count = new_count;
+                arData->temps[new_count-1] = value;
 
-                if(sensorData->temps_ar_count > 1) {
-                    sensorData->deltas_ar[new_count-1] = value - sensorData->temps_ar[new_count-2];
-                } else if(sensorData->temps_ar_count == 1) {
-                    sensorData->deltas_ar[0] = 0;
+                if(arData->count > 1) {
+                    arData->deltas[new_count-1] = value - arData->temps[new_count-2];
+                } else if(arData->count == 1) {
+                    arData->deltas[0] = 0;
                 }
             } else {
-                sensorData->temps_ar[DataBroker_aux_ar] = (sensorData->temps_ar[DataBroker_aux_ar] + sensorData->temps_ar[DataBroker_aux_ar+1]) / 2;
-                sensorData->deltas_ar[DataBroker_aux_ar] = (sensorData->deltas_ar[DataBroker_aux_ar] + sensorData->deltas_ar[DataBroker_aux_ar+1]) / 2;
-                for(int i=DataBroker_aux_ar+1; i < 30; i++) {
-                    sensorData->temps_ar[i] = sensorData->temps_ar[i+1];
-                    sensorData->deltas_ar[i] = sensorData->deltas_ar[i+1];
+                arData->temps[*ar_aux] = (arData->temps[*ar_aux] + arData->temps[(*ar_aux)+1]) / 2;
+                arData->deltas[*ar_aux] = (arData->deltas[*ar_aux] + arData->deltas[(*ar_aux)+1]) / 2;
+                for(int i=(*ar_aux)+1; i < 30; i++) {
+                    arData->temps[i] = arData->temps[i+1];
+                    arData->deltas[i] = arData->deltas[i+1];
                 }
-                sensorData->temps_ar[30] = value;
-                sensorData->deltas_ar[30] = value - sensorData->temps_ar[29];
+                arData->temps[30] = value;
+                arData->deltas[30] = value - arData->temps[29];
 
-                DataBroker_aux_ar++;
-                DataBroker_aux_ar = DataBroker_aux_ar % 25;
+                (*ar_aux)++;
+                *ar_aux = (*ar_aux) % 25;
             }
         }
     }
-
-    */
 }
 
 /*${AOs::DataBroker::setupRecipe} ..........................................*/
@@ -220,6 +224,8 @@ static void DataBroker_resetData(DataBroker * const me) {
     DataBroker_resetConfig(me);
     DataBroker_resetRoast(me);
     DataBroker_resetRecipe(me);
+
+    me->timer_start = 0;
 }
 
 /*${AOs::DataBroker::resetConfig} ..........................................*/
@@ -251,6 +257,10 @@ static void DataBroker_resetRoast(DataBroker * const me) {
 
     me->curr_roast.sensor_data.max = 0;
     me->curr_roast.sensor_data.min = 0;
+    me->curr_roast.sensor_data.max_delta = 0;
+    me->curr_roast.sensor_data.min_delta = 0;
+
+    strcpy(me->curr_roast.name, "");
 }
 
 /*${AOs::DataBroker::resetRecipe} ..........................................*/
@@ -527,13 +537,6 @@ static QState DataBroker_active_mode(DataBroker * const me, QEvt const * const e
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::state1::active_mode::CONTROL_DATA} */
-        case CONTROL_DATA_SIG: {
-            ControlDataEvt *contEv = Q_EVT_CAST(ControlDataEvt);
-            QACTIVE_POST(AO_Ihm, contEv, me);
-            status_ = Q_HANDLED();
-            break;
-        }
         /*${AOs::DataBroker::SM::state1::active_mode::REQUEST_MODE} */
         case REQUEST_MODE_SIG: {
             RequestModeEvt *rme = Q_EVT_CAST(RequestModeEvt);
@@ -574,27 +577,29 @@ static QState DataBroker_pre_heating(DataBroker * const me, QEvt const * const e
     switch (e->sig) {
         /*${AOs::DataBroker::SM::state1::active_mode::pre_heating} */
         case Q_ENTRY_SIG: {
-            storage_create_new_roast();
+            storage_create_new_roast(&me->curr_roast.name);
             status_ = Q_HANDLED();
             break;
         }
         /*${AOs::DataBroker::SM::state1::active_mode::pre_heating::SENSOR_UPDATE} */
         case SENSOR_UPDATE_SIG: {
             SensorUpdateEvt *sensorEv = Q_EVT_CAST(SensorUpdateEvt);
-
-            /*
-            if(sensorEv->type == SENSOR_GRAO) {
-                me->pre_heat_value = sensorEv->value;
-            }
-            */
-
-            //DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, &DataBroker_sensorData, false);
             SensorDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_DATA_SIG);
             sensorDataEv->type = sensorEv->type;
             sensorDataEv->value = sensorEv->value;
             sensorDataEv->delta = 0;
             QACTIVE_POST(AO_Ihm, sensorDataEv, me);
 
+            DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, false);
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::DataBroker::SM::state1::active_mode::pre_heating::CONTROL_DATA} */
+        case CONTROL_DATA_SIG: {
+            ControlDataEvt *contEv = Q_EVT_CAST(ControlDataEvt);
+            QACTIVE_POST(AO_Ihm, contEv, me);
+
+            storage_add_roast_control_record(0, contEv->control, contEv->value);
             status_ = Q_HANDLED();
             break;
         }
@@ -615,7 +620,7 @@ static QState DataBroker_auto_pre_heating(DataBroker * const me, QEvt const * co
             ESP_LOGI(TAG, "[ACTIVE_MODE][AUTO_PRE_HEATING][ENTRY]");
 
             //ESP_LOGE(TAG, "recipe: %s", me->curr_mode.roast);
-            DataBroker_setupRecipe(me);
+            //DataBroker_setupRecipe(me);
             status_ = Q_HANDLED();
             break;
         }
@@ -702,56 +707,72 @@ static QState DataBroker_roasting(DataBroker * const me, QEvt const * const e) {
     switch (e->sig) {
         /*${AOs::DataBroker::SM::state1::active_mode::roasting} */
         case Q_ENTRY_SIG: {
-            /*
             time_t time_now;
             time(&time_now);
 
-            me->time_start = time_now;
+            me->curr_roast.time_start = time_now;
+            me->timer_start = time_now;
 
-            storage_add_roast_pre_heat_record(0, me->pre_heat_value);
-            */
+            int count = me->curr_roast.sensor_data.grao.count;
+
+            if(count > 0)
+                storage_add_roast_pre_heat_record(0, me->curr_roast.sensor_data.grao.temps[count-1]);
+            else
+                storage_add_roast_pre_heat_record(0, 0);
             status_ = Q_HANDLED();
             break;
         }
         /*${AOs::DataBroker::SM::state1::active_mode::roasting::SENSOR_UPDATE} */
         case SENSOR_UPDATE_SIG: {
             SensorUpdateEvt *sensorEv = Q_EVT_CAST(SensorUpdateEvt);
-
-            /*
-            if(sensorEv->type == SENSOR_GRAO) {
-                me->cooler_value = sensorEv->value;
-            }
-            */
-
-            //DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, &DataBroker_sensorData, false);
             SensorDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_DATA_SIG);
             sensorDataEv->type = sensorEv->type;
             sensorDataEv->value = sensorEv->value;
             sensorDataEv->delta = 0;
             QACTIVE_POST(AO_Ihm, sensorDataEv, me);
 
-            /*
+            DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, true);
+
             time_t time_now;
             time(&time_now);
 
-            time_t time_elapsed = time_now - me->time_start;
+            time_t time_elapsed = time_now - me->curr_roast.time_start;
             storage_add_roast_sensor_record(time_elapsed, sensorEv->type, sensorEv->value);
-            */
             status_ = Q_HANDLED();
             break;
         }
         /*${AOs::DataBroker::SM::state1::active_mode::roasting::CONTROL_DATA} */
         case CONTROL_DATA_SIG: {
-            /*
             ControlDataEvt *contEv = Q_EVT_CAST(ControlDataEvt);
             QACTIVE_POST(AO_Ihm, contEv, me);
 
             time_t time_now;
             time(&time_now);
 
-            time_t time_elapsed = time_now - me->time_start;
-            storage_add_roast_control_record(time_elapsed, contEv->control, contEv->payload);
-            */
+            time_t time_elapsed = time_now - me->curr_roast.time_start;
+
+            storage_add_roast_control_record(time_elapsed, contEv->control, contEv->value);
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::DataBroker::SM::state1::active_mode::roasting::REQUEST_NEXT_SUBSTAGE} */
+        case REQUEST_NEXT_SUBSTAGE_SIG: {
+            RequestNextSubstageEvt *subEv = Q_EVT_CAST(RequestNextSubstageEvt);
+            time_t time_now;
+            time(&time_now);
+
+            time_t time_elapsed = time_now - me->curr_roast.time_start;
+
+
+            if(subEv->substage == Q1)
+                storage_add_roast_q1_record(time_elapsed);
+
+            if(subEv->substage == Q2)
+                storage_add_roast_q2_record(time_elapsed);
+
+
+            NotifyNextSubstageEvt *stageEv = Q_NEW(NotifyNextSubstageEvt, NOTIFY_NEXT_SUBSTAGE_SIG);
+            QACTIVE_POST(AO_Ihm, &stageEv->super, me);
             status_ = Q_HANDLED();
             break;
         }
@@ -896,48 +917,41 @@ static QState DataBroker_cooling(DataBroker * const me, QEvt const * const e) {
     switch (e->sig) {
         /*${AOs::DataBroker::SM::state1::active_mode::cooling} */
         case Q_ENTRY_SIG: {
-            /*
             time_t time_now;
             time(&time_now);
 
-            time_t time_elapsed = time_now - me->time_start;
-            storage_add_roast_cooler_record(time_elapsed, me->cooler_value);
-            */
+            time_t time_elapsed = time_now - me->curr_roast.time_start;
+
+            int count = me->curr_roast.sensor_data.grao.count;
+
+            if(count > 0)
+                storage_add_roast_cooler_record(time_elapsed, me->curr_roast.sensor_data.grao.temps[count-1]);
+            else
+                storage_add_roast_cooler_record(time_elapsed, 0);
             status_ = Q_HANDLED();
             break;
         }
         /*${AOs::DataBroker::SM::state1::active_mode::cooling::SENSOR_UPDATE} */
         case SENSOR_UPDATE_SIG: {
             SensorUpdateEvt *sensorEv = Q_EVT_CAST(SensorUpdateEvt);
-
-            //DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, &DataBroker_sensorData, false);
             SensorDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_DATA_SIG);
             sensorDataEv->type = sensorEv->type;
             sensorDataEv->value = sensorEv->value;
+            sensorDataEv->delta = 0;
             QACTIVE_POST(AO_Ihm, sensorDataEv, me);
-
-            /*
-            time_t time_now;
-            time(&time_now);
-
-            time_t time_elapsed = time_now - me->time_start;
-            storage_add_roast_sensor_record(time_elapsed, sensorEv->type, sensorEv->value);
-            */
             status_ = Q_HANDLED();
             break;
         }
         /*${AOs::DataBroker::SM::state1::active_mode::cooling::CONTROL_DATA} */
         case CONTROL_DATA_SIG: {
-            /*
             ControlDataEvt *contEv = Q_EVT_CAST(ControlDataEvt);
             QACTIVE_POST(AO_Ihm, contEv, me);
 
             time_t time_now;
             time(&time_now);
 
-            time_t time_elapsed = time_now - me->time_start;
-            storage_add_roast_control_record(time_elapsed, contEv->control, contEv->payload);
-            */
+            time_t time_elapsed = time_now - me->curr_roast.time_start;
+            storage_add_roast_control_record(time_elapsed, contEv->control, contEv->value);
             status_ = Q_HANDLED();
             break;
         }
@@ -1066,6 +1080,17 @@ static QState DataBroker_summary(DataBroker * const me, QEvt const * const e) {
             status_ = Q_HANDLED();
             break;
         }
+        /*${AOs::DataBroker::SM::state1::active_mode::summary::REQUEST_SUMMARY} */
+        case REQUEST_SUMMARY_SIG: {
+            RequestSummaryEvt *reqEv = Q_EVT_CAST(RequestSummaryEvt);
+
+            ResponseSummaryEvt *resEv = Q_NEW(ResponseSummaryEvt, RESPONSE_SUMMARY_SIG);
+            strcpy(resEv->name, me->curr_roast.name);
+
+            QACTIVE_POST(AO_Ihm, resEv, me);
+            status_ = Q_HANDLED();
+            break;
+        }
         default: {
             status_ = Q_SUPER(&DataBroker_active_mode);
             break;
@@ -1177,12 +1202,13 @@ static QState DataBroker_sensoring(DataBroker * const me, QEvt const * const e) 
         case SENSOR_UPDATE_SIG: {
             SensorUpdateEvt *sensorEv = Q_EVT_CAST(SensorUpdateEvt);
 
-            //DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, &DataBroker_sensorData, false);
             SensorDataEvt *sensorDataEv = Q_NEW(SensorDataEvt, SENSOR_DATA_SIG);
             sensorDataEv->type = sensorEv->type;
             sensorDataEv->value = sensorEv->value;
             sensorDataEv->delta = 0;
             QACTIVE_POST(AO_Ihm, sensorDataEv, me);
+
+            DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, false);
             status_ = Q_HANDLED();
             break;
         }

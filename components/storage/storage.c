@@ -133,9 +133,13 @@ void storage_get_global_config(uint16_t *pre_heat, uint16_t *roast) {
     *roast = global_max_roast;
 }
 
-void storage_create_new_roast() {
+void storage_create_new_roast(char *name) {
     uint32_t new_roast_num = roast_number + 1;
     set_roast_number(new_roast_num);
+
+    char filename[9] = "\0";
+    sprintf(filename, "%u", new_roast_num);
+    strcpy(name, filename);
 
     char path[100] = {0};
     sprintf(path, "/storage/roasts/%u", new_roast_num);
@@ -145,17 +149,17 @@ void storage_create_new_roast() {
     fclose(fp);
 }
 
-void storage_add_roast_control_record(time_t total_time, ControlType type, void *payload) {
+void storage_add_roast_control_record(time_t total_time, ControlType type, int value) {
     char path[100] = {0};
     sprintf(path, "/storage/roasts/%u", roast_number);
 
     FILE *f = fopen(path, "a");
     if (type == CILINDRO) {
-        fprintf(f, "%ld,CONTROL_CILINDRO,%d\n", total_time, (int)payload);
+        fprintf(f, "%ld,CONTROL_CILINDRO,%d\n", total_time, value);
     } else if (type == POTENCIA) {
-        fprintf(f, "%ld,CONTROL_POTENCIA,%d\n", total_time, (int)payload);
+        fprintf(f, "%ld,CONTROL_POTENCIA,%d\n", total_time, value);
     } else if (type == TURBINA) {
-        fprintf(f, "%ld,CONTROL_TURBINA,%d\n", total_time, 0);
+        fprintf(f, "%ld,CONTROL_TURBINA,%d\n", total_time, value);
     }
 
     fclose(f);
@@ -192,6 +196,24 @@ void storage_add_roast_cooler_record(time_t total_time, int temp_grao) {
 
     FILE *f = fopen(path, "a");
     fprintf(f, "%ld,COOLER,%d\n", total_time, temp_grao);
+    fclose(f);
+}
+
+void storage_add_roast_q1_record(time_t total_time) {
+    char path[100] = {0};
+    sprintf(path, "/storage/roasts/%u", roast_number);
+
+    FILE *f = fopen(path, "a");
+    fprintf(f, "%ld,F-Q1,0\n", total_time);
+    fclose(f);
+}
+
+void storage_add_roast_q2_record(time_t total_time) {
+    char path[100] = {0};
+    sprintf(path, "/storage/roasts/%u", roast_number);
+
+    FILE *f = fopen(path, "a");
+    fprintf(f, "%ld,Q1-Q2,0\n", total_time);
     fclose(f);
 }
 

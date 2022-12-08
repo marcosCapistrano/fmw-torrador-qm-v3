@@ -53,6 +53,7 @@ enum Signals {
     NOTIFY_NEXT_STAGE_SIG,
     REQUEST_NEXT_SUBSTAGE_SIG,
     NOTIFY_NEXT_SUBSTAGE_SIG,
+    NOTIFY_SUBSTAGE_EXIT_SIG,
 
     PWM_TIMEOUT_SIG,
     SENSOR_TIMEOUT_SIG,
@@ -120,6 +121,13 @@ typedef enum ModeTypeTag {
     MODE_AUTO
 } ModeType;
 
+typedef enum SubstageTypeTag {
+    SUB_IDLE,
+    F,
+    Q1,
+    Q2,
+} SubstageType;
+
 typedef enum StageTypeTag {
     IDLE,
     PRE_HEAT,
@@ -144,6 +152,10 @@ typedef struct SensorDataTag {
     TempData grao;
     int max;
     int min;
+    int max_delta;
+    int min_delta;
+    int grao_aux;
+    int ar_aux;
 } SensorData;
 
 typedef struct RoastsResponseTag {
@@ -185,6 +197,7 @@ typedef struct RoastDataTag {
     time_t time_end;
     SensorData sensor_data;
     ControlData control_data;
+    char name[9];
 } RoastData;
 
 typedef struct RecipeDataTag {
@@ -363,25 +376,13 @@ typedef struct {
     QEvt super;
 
 /* public: */
-    int * temps_ar;
-    int * temps_grao;
-    int temps_count_ar;
-    int temps_count_grao;
-    time_t total_time;
-    const char * recipe_name;
+    char name[9];
 } ResponseSummaryEvt;
 
 /*${Events::RequestSummaryEvt} .............................................*/
 typedef struct {
 /* protected: */
     QEvt super;
-
-/* public: */
-    int * temps_ar;
-    int * temps_grao;
-    int temps_count_ar;
-    int temps_count_grao;
-    time_t total_time;
 } RequestSummaryEvt;
 
 /*${Events::ControlUpdateEvt} ..............................................*/
@@ -528,6 +529,9 @@ typedef struct {
 typedef struct {
 /* protected: */
     QEvt super;
+
+/* public: */
+    SubstageType substage;
 } RequestNextSubstageEvt;
 
 /*${Events::ChartDataEvt} ..................................................*/
@@ -595,6 +599,12 @@ typedef struct {
     unsigned short int vp;
     unsigned short value;
 } UartOutputNumberEvt;
+
+/*${Events::NotifySubstageExitEvt} .........................................*/
+typedef struct {
+/* protected: */
+    QEvt super;
+} NotifySubstageExitEvt;
 /*$enddecl${Events} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
 
 /*$declare${AOs::Ihm_ctor} vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv*/
