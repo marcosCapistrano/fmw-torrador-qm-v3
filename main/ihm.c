@@ -500,7 +500,7 @@ static QState IhmSubstage_q1(IhmSubstage * const me, QEvt const * const e) {
         case Q_ENTRY_SIG: {
             ESP_LOGD(TAG, "[SUBSTAGE][Q1][ENTRY]");
 
-            postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 2);
+            postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 4);
             status_ = Q_HANDLED();
             break;
         }
@@ -546,13 +546,13 @@ static QState IhmSubstage_f(IhmSubstage * const me, QEvt const * const e) {
         case Q_ENTRY_SIG: {
             ESP_LOGD(TAG, "[SUBSTAGE][F][ENTRY]");
 
-            postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 1);
+            postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 2);
             status_ = Q_HANDLED();
             break;
         }
         /*${Components::IhmSubstage::SM::f} */
         case Q_EXIT_SIG: {
-            ESP_LOGD(TAG, "[SUBSTAGE][ROASTING][EXIT]");
+            ESP_LOGD(TAG, "[SUBSTAGE][F][EXIT]");
             status_ = Q_HANDLED();
             break;
         }
@@ -605,13 +605,7 @@ static QState IhmSubstage_q2(IhmSubstage * const me, QEvt const * const e) {
         /*${Components::IhmSubstage::SM::q2::NOTIFY_SUBSTAGE_EXIT} */
         case NOTIFY_SUBSTAGE_EXIT_SIG: {
             NotifyModeEvt *rme = Q_EVT_CAST(NotifyModeEvt);
-            /*${Components::IhmSubstage::SM::q2::NOTIFY_SUBSTAGE_~::[rme->mode==MODE_NONE]} */
-            if (rme->mode == MODE_NONE) {
-                status_ = Q_TRAN(&IhmSubstage_idle);
-            }
-            else {
-                status_ = Q_UNHANDLED();
-            }
+            status_ = Q_TRAN(&IhmSubstage_idle);
             break;
         }
         default: {
@@ -839,7 +833,6 @@ static QState Ihm_manual_mode(Ihm * const me, QEvt const * const e) {
         case NOTIFY_MODE_SIG: {
             NotifyModeEvt *nme = Q_EVT_CAST(NotifyModeEvt);
             QHSM_DISPATCH((QHsm *)&me->stage, e, me->super.prio);
-            QHSM_DISPATCH((QHsm *)&me->substage, e, me->super.prio);
             /*${AOs::Ihm::SM::manual_mode::NOTIFY_MODE::[nme->mode==MODE_NONE]} */
             if (nme->mode == MODE_NONE) {
                 status_ = Q_TRAN(&Ihm_main_menu);

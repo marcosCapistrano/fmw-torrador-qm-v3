@@ -507,8 +507,7 @@ QACTIVE_POST(AO_DataBroker, &amp;ram-&gt;super, me);</entry>
      </initial>
      <tran trig="NOTIFY_MODE">
       <action>NotifyModeEvt *nme = Q_EVT_CAST(NotifyModeEvt); 
-QHSM_DISPATCH((QHsm *)&amp;me-&gt;stage, e, me-&gt;super.prio);
-QHSM_DISPATCH((QHsm *)&amp;me-&gt;substage, e, me-&gt;super.prio);</action>
+QHSM_DISPATCH((QHsm *)&amp;me-&gt;stage, e, me-&gt;super.prio);</action>
       <choice target="../../../1">
        <guard>nme-&gt;mode == MODE_NONE</guard>
        <choice_glyph conn="146,51,4,2,-6">
@@ -2788,7 +2787,7 @@ postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 0);</entry>
     <state name="q1">
      <entry>ESP_LOGD(TAG, &quot;[SUBSTAGE][Q1][ENTRY]&quot;);
 
-postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 2);</entry>
+postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 4);</entry>
      <exit>ESP_LOGD(TAG, &quot;[SUBSTAGE][PRE_HEATING][EXIT]&quot;);</exit>
      <tran trig="NOTIFY_NEXT_SUBSTAGE" target="../../4">
       <tran_glyph conn="66,28,3,0,-13,0">
@@ -2818,8 +2817,8 @@ QACTIVE_POST(AO_DataBroker, &amp;stageEv-&gt;super, me);</action>
     <state name="f">
      <entry>ESP_LOGD(TAG, &quot;[SUBSTAGE][F][ENTRY]&quot;);
 
-postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 1);</entry>
-     <exit>ESP_LOGD(TAG, &quot;[SUBSTAGE][ROASTING][EXIT]&quot;);</exit>
+postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 2);</entry>
+     <exit>ESP_LOGD(TAG, &quot;[SUBSTAGE][F][EXIT]&quot;);</exit>
      <tran trig="NOTIFY_NEXT_SUBSTAGE" target="../../2">
       <tran_glyph conn="78,16,2,0,5">
        <action box="0,-2,10,2"/>
@@ -2850,15 +2849,9 @@ QACTIVE_POST(AO_DataBroker, &amp;stageEv-&gt;super, me);</action>
 
 postUart_setIcon(SUBSTAGE_BTN_ICON_VP, 0);</entry>
      <exit>ESP_LOGD(TAG, &quot;[SUBSTAGE][COOLING][EXIT]&quot;);</exit>
-     <tran trig="NOTIFY_SUBSTAGE_EXIT">
+     <tran trig="NOTIFY_SUBSTAGE_EXIT" target="../../1">
       <action>NotifyModeEvt *rme = Q_EVT_CAST(NotifyModeEvt);</action>
-      <choice target="../../../1">
-       <guard>rme-&gt;mode == MODE_NONE</guard>
-       <choice_glyph conn="13,20,4,2,-4,7,-2">
-        <action box="1,0,10,2"/>
-       </choice_glyph>
-      </choice>
-      <tran_glyph conn="29,28,3,-1,-16,-8">
+      <tran_glyph conn="29,28,3,2,-10,-14">
        <action box="-12,-3,10,2"/>
       </tran_glyph>
      </tran>
