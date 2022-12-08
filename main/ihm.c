@@ -62,6 +62,11 @@ Q_DEFINE_THIS_FILE
 #define CONTROL_CILINDRO_ICON_VP 81
 #define CONTROL_RESFRIADOR_ICON_VP 83
 #define CONTROL_TURBINA_ICON_VP 84
+#define ROASTS_ICON_LEFT_VP 185
+#define ROASTS_ICON_RIGHT_VP 186
+#define ROASTS_ICON_ROAST1_VP 187
+#define ROASTS_ICON_ROAST2_VP 188
+#define ROASTS_ICON_ROAST3_VP 189
 
 #define SENSOR_GAS_TEXT_VP 0
 #define SENSOR_AR_TEXT_VP 49
@@ -77,6 +82,9 @@ Q_DEFINE_THIS_FILE
 #define SUMMARY_TITLE_TEXT_VP 111
 #define SUMMARY_SUBTITLE_TEXT_VP 147
 #define SUMMARY_SUBTITLE2_TEXT_VP 162
+#define ROASTS_TEXT_ROAST1_VP 437
+#define ROASTS_TEXT_ROAST2_VP 462
+#define ROASTS_TEXT_ROAST3_VP 487
 
 #define SENSOR_GAS_TEXT_LEN 4
 #define SENSOR_AR_TEXT_LEN 6
@@ -92,6 +100,9 @@ Q_DEFINE_THIS_FILE
 #define SUMMARY_TITLE_TEXT_LEN 35
 #define SUMMARY_SUBTITLE_TEXT_LEN 16
 #define SUMMARY_SUBTITLE2_TEXT_LEN 23
+#define ROASTS_TEXT_ROAST1_LEN 25
+#define ROASTS_TEXT_ROAST2_LEN 25
+#define ROASTS_TEXT_ROAST3_LEN 25
 
 
 #define CONFIG_PRE_HEAT_NUMBER_VP 73
@@ -150,27 +161,35 @@ typedef struct {
 /* protected: */
     QActive super;
 
-/* public: */
+/* private: */
     IhmState state;
     QTimeEvt stageTimerEvt;
-
-/* private: */
     IhmStage stage;
     IhmSubstage substage;
+    RoastsPageData roasts_page;
+
+/* public: */
+    RoastPageData roast_page;
 
 /* private state histories */
     QStateHandler hist_manual_page;
 } Ihm;
 
 /* private: */
+static void Ihm_resetData(Ihm * const me);
+static void Ihm_resetState(Ihm * const me);
+static void Ihm_resetRoastsPageData(Ihm * const me);
+static void Ihm_resetRoastPageData(Ihm * const me);
 static void Ihm_setupPageManualMode(void);
 static void Ihm_setupPageMainMenu(void);
 static void Ihm_setupPageManualControls(void);
 static void Ihm_setupPageSummary(void);
 static void Ihm_setupPageConfig(void);
-static void Ihm_resetState(Ihm * const me);
 static void Ihm_setupPageControls(Ihm * const me);
 static void Ihm_requestExitMode(void);
+static void Ihm_setupPageRoasts(Ihm * const me,
+    bool recipes);
+static void Ihm_setupPageRoast(void);
 
 /* protected: */
 static QState Ihm_initial(Ihm * const me, void const * const par);
@@ -193,6 +212,8 @@ static QState Ihm_auto_controls(Ihm * const me, QEvt const * const e);
 static QState Ihm_recipes(Ihm * const me, QEvt const * const e);
 static QState Ihm_roasts(Ihm * const me, QEvt const * const e);
 static QState Ihm_config(Ihm * const me, QEvt const * const e);
+static QState Ihm_recipe(Ihm * const me, QEvt const * const e);
+static QState Ihm_roast(Ihm * const me, QEvt const * const e);
 /*$enddecl${AOs::Ihm} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
 
 
@@ -637,6 +658,40 @@ static QState IhmSubstage_q2(IhmSubstage * const me, QEvt const * const e) {
 
 /*${AOs::Ihm} ..............................................................*/
 
+/*${AOs::Ihm::resetData} ...................................................*/
+static void Ihm_resetData(Ihm * const me) {
+    Ihm_resetState(me);
+    Ihm_resetRoastsPageData(me);
+    Ihm_resetRoastPageData(me);
+}
+
+/*${AOs::Ihm::resetState} ..................................................*/
+static void Ihm_resetState(Ihm * const me) {
+    me->state.control = (ControlState){
+        .potencia = 0,
+        .cilindro = 0,
+        .turbina = TOGGLE_OFF,
+        .resfriador = TOGGLE_OFF
+    };
+}
+
+/*${AOs::Ihm::resetRoastsPageData} .........................................*/
+static void Ihm_resetRoastsPageData(Ihm * const me) {
+    me->roasts_page = (RoastsPageData){
+        .page = 0,
+        .roast1 = "",
+        .roast2 = "",
+        .roast3 = "",
+    };
+}
+
+/*${AOs::Ihm::resetRoastPageData} ..........................................*/
+static void Ihm_resetRoastPageData(Ihm * const me) {
+    me->roast_page = (RoastPageData){
+        .roast = ""
+    };
+}
+
 /*${AOs::Ihm::setupPageManualMode} .........................................*/
 static void Ihm_setupPageManualMode(void) {
     ESP_LOGD(TAG, "[IHM_SETUP_PAGE_MANUAL_MODE]");
@@ -706,16 +761,6 @@ static void Ihm_setupPageConfig(void) {
     postUart_setNumber(CONFIG_ROAST_NUMBER_VP, 0);
 }
 
-/*${AOs::Ihm::resetState} ..................................................*/
-static void Ihm_resetState(Ihm * const me) {
-    me->state.control = (ControlState){
-        .potencia = 0,
-        .cilindro = 0,
-        .turbina = TOGGLE_OFF,
-        .resfriador = TOGGLE_OFF
-    };
-}
-
 /*${AOs::Ihm::setupPageControls} ...........................................*/
 static void Ihm_setupPageControls(Ihm * const me) {
     ESP_LOGD(TAG, "[IHM_SETUP_PAGE_CONTROLS]");
@@ -753,6 +798,71 @@ static void Ihm_requestExitMode(void) {
     strcpy(ram->roast, "");
 
     QACTIVE_POST(AO_DataBroker, &ram->super, me);
+}
+
+/*${AOs::Ihm::setupPageRoasts} .............................................*/
+static void Ihm_setupPageRoasts(Ihm * const me,
+    bool recipes)
+{
+    ESP_LOGD(TAG, "[IHM_SETUP_PAGE_ROASTS]");
+
+    postUart_setPage(ROASTS_PICID);
+
+
+    postUart_setIcon(NAVBAR_ICON_HOME_VP, 1);
+    postUart_setIcon(NAVBAR_ICON_GEAR_VP, 1);
+
+    if(me->roasts_page.prev)
+        postUart_setIcon(ROASTS_ICON_LEFT_VP, 1);
+    else
+        postUart_setIcon(ROASTS_ICON_LEFT_VP, 0);
+
+    if(me->roasts_page.next)
+        postUart_setIcon(ROASTS_ICON_RIGHT_VP, 2);
+    else
+        postUart_setIcon(ROASTS_ICON_RIGHT_VP, 0);
+
+    ESP_LOGE(TAG, "%s-%s-%s", me->roasts_page.roast1, me->roasts_page.roast2,me->roasts_page.roast3);
+
+    if(strcmp(me->roasts_page.roast1, "") == 0) {
+        postUart_setIcon(ROASTS_ICON_ROAST1_VP, 0);
+        postUart_setString(ROASTS_TEXT_ROAST1_VP, "", true, ROASTS_TEXT_ROAST1_LEN);
+    } else {
+        postUart_setIcon(ROASTS_ICON_ROAST1_VP, 1);
+        postUart_setString(ROASTS_TEXT_ROAST1_VP, me->roasts_page.roast1, true, ROASTS_TEXT_ROAST1_LEN);
+    }
+
+    if(strcmp(me->roasts_page.roast2, "") == 0) {
+        postUart_setIcon(ROASTS_ICON_ROAST2_VP, 0);
+        postUart_setString(ROASTS_TEXT_ROAST2_VP, "", true, ROASTS_TEXT_ROAST2_LEN);
+    } else {
+        postUart_setIcon(ROASTS_ICON_ROAST2_VP, 1);
+        postUart_setString(ROASTS_TEXT_ROAST2_VP, me->roasts_page.roast2, true, ROASTS_TEXT_ROAST2_LEN);
+    }
+
+    if(strcmp(me->roasts_page.roast3, "") == 0) {
+        postUart_setIcon(ROASTS_ICON_ROAST3_VP, 0);
+        postUart_setString(ROASTS_TEXT_ROAST3_VP, "", true, ROASTS_TEXT_ROAST3_LEN);
+    } else {
+        postUart_setIcon(ROASTS_ICON_ROAST3_VP, 1);
+        postUart_setString(ROASTS_TEXT_ROAST3_VP, "oiii", true, ROASTS_TEXT_ROAST3_LEN);
+    }
+
+    if(recipes) {
+        postUart_setString(NAVBAR_TEXT_VP, "RECEITAS", true, NAVBAR_TEXT_LEN);
+    } else {
+        postUart_setString(NAVBAR_TEXT_VP, "TORRAS", true, NAVBAR_TEXT_LEN);
+    }
+}
+
+/*${AOs::Ihm::setupPageRoast} ..............................................*/
+static void Ihm_setupPageRoast(void) {
+    ESP_LOGD(TAG, "[IHM_SETUP_PAGE_CONFIG]");
+
+    postUart_setPage(ROAST_PICID);
+    postUart_setString(NAVBAR_TEXT_VP, "TORRAS", true, NAVBAR_TEXT_LEN);
+    postUart_setIcon(NAVBAR_ICON_HOME_VP, 1);
+    postUart_setIcon(NAVBAR_ICON_GEAR_VP, 1);
 }
 
 /*${AOs::Ihm::SM} ..........................................................*/
@@ -1625,6 +1735,81 @@ static QState Ihm_auto_controls(Ihm * const me, QEvt const * const e) {
 static QState Ihm_recipes(Ihm * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
+        /*${AOs::Ihm::SM::recipes} */
+        case Q_ENTRY_SIG: {
+            ESP_LOGD(TAG, "[RECIPES][ENTRY]");
+
+            Ihm_resetRoastsPageData(me);
+            Ihm_setupPageRoasts(me, true);
+
+            RequestRecipesEvt *reqEv = Q_NEW(RequestRecipesEvt, REQUEST_RECIPES_SIG);
+            reqEv->pageNum = 0;
+            QACTIVE_POST(AO_DataBroker, &reqEv->super, me);
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::recipes} */
+        case Q_EXIT_SIG: {
+            ESP_LOGD(TAG, "[RECIPES][EXIT]");
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::recipes::RESPONSE_RECIPES} */
+        case RESPONSE_RECIPES_SIG: {
+            ResponseRecipesEvt *rre = Q_EVT_CAST(ResponseRecipesEvt);
+
+            me->roasts_page.page = rre->pageNum;
+            strcpy(&me->roasts_page.roast1, rre->roast1);
+            strcpy(&me->roasts_page.roast2, rre->roast2);
+            strcpy(&me->roasts_page.roast3, rre->roast3);
+            me->roasts_page.prev = rre->prevPage;
+            me->roasts_page.next = rre->nextPage;
+
+            Ihm_setupPageRoasts(me, true);
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::recipes::IHM_INPUT_TOUCH} */
+        case IHM_INPUT_TOUCH_SIG: {
+            IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);
+            /*${AOs::Ihm::SM::recipes::IHM_INPUT_TOUCH::[ihmEv->length==5]} */
+            if (ihmEv->length == 5) {
+                RequestRecipesEvt *reqEv = Q_NEW(RequestRecipesEvt, REQUEST_RECIPES_SIG);
+                reqEv->pageNum = me->roasts_page.page + 1;
+                QACTIVE_POST(AO_DataBroker, &reqEv->super, me);
+                status_ = Q_HANDLED();
+            }
+            /*${AOs::Ihm::SM::recipes::IHM_INPUT_TOUCH::[ihmEv->length==5]} */
+            else if (ihmEv->length == 5) {
+                RequestRecipesEvt *reqEv = Q_NEW(RequestRecipesEvt, REQUEST_RECIPES_SIG);
+                reqEv->pageNum = me->roasts_page.page -1;
+                QACTIVE_POST(AO_DataBroker, &reqEv->super, me);
+                status_ = Q_HANDLED();
+            }
+            /*${AOs::Ihm::SM::recipes::IHM_INPUT_TOUCH::[ihmEv->length==8&&strcmp(me->ro~} */
+            else if (ihmEv->length == 8 && strcmp(me->roasts_page.roast3, "") != 0) {
+                strcpy(me->roast_page.roast, me->roasts_page.roast3);
+                status_ = Q_TRAN(&Ihm_recipe);
+            }
+            /*${AOs::Ihm::SM::recipes::IHM_INPUT_TOUCH::[ihmEv->length==7&&strcmp(me->ro~} */
+            else if (ihmEv->length == 7 && strcmp(me->roasts_page.roast2, "") != 0) {
+                strcpy(me->roast_page.roast, me->roasts_page.roast2);
+                status_ = Q_TRAN(&Ihm_recipe);
+            }
+            /*${AOs::Ihm::SM::recipes::IHM_INPUT_TOUCH::[ihmEv->length==6&&strcmp(me->ro~} */
+            else if (ihmEv->length == 6 && strcmp(me->roasts_page.roast1, "") != 0) {
+                strcpy(me->roast_page.roast, me->roasts_page.roast1);
+                status_ = Q_TRAN(&Ihm_recipe);
+            }
+            /*${AOs::Ihm::SM::recipes::IHM_INPUT_TOUCH::[ihmEv->length==1||ihmEv->length~} */
+            else if (ihmEv->length == 1 || ihmEv->length == 3) {
+                status_ = Q_TRAN(&Ihm_main_menu);
+            }
+            else {
+                status_ = Q_UNHANDLED();
+            }
+            break;
+        }
         default: {
             status_ = Q_SUPER(&QHsm_top);
             break;
@@ -1637,6 +1822,81 @@ static QState Ihm_recipes(Ihm * const me, QEvt const * const e) {
 static QState Ihm_roasts(Ihm * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
+        /*${AOs::Ihm::SM::roasts} */
+        case Q_ENTRY_SIG: {
+            ESP_LOGD(TAG, "[ROASTS][ENTRY]");
+
+            Ihm_resetRoastsPageData(me);
+            Ihm_setupPageRoasts(me, false);
+
+            RequestRoastsEvt *reqEv = Q_NEW(RequestRoastsEvt, REQUEST_ROASTS_SIG);
+            reqEv->pageNum = 0;
+            QACTIVE_POST(AO_DataBroker, &reqEv->super, me);
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::roasts} */
+        case Q_EXIT_SIG: {
+            ESP_LOGD(TAG, "[ROASTS][EXIT]");
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::roasts::RESPONSE_ROASTS} */
+        case RESPONSE_ROASTS_SIG: {
+            ResponseRoastsEvt *rre = Q_EVT_CAST(ResponseRoastsEvt);
+
+            me->roasts_page.page = rre->pageNum;
+            strcpy(&me->roasts_page.roast1, rre->roast1);
+            strcpy(&me->roasts_page.roast2, rre->roast2);
+            strcpy(&me->roasts_page.roast3, rre->roast3);
+            me->roasts_page.prev = rre->prevPage;
+            me->roasts_page.next = rre->nextPage;
+
+            Ihm_setupPageRoasts(me, false);
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::roasts::IHM_INPUT_TOUCH} */
+        case IHM_INPUT_TOUCH_SIG: {
+            IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);
+            /*${AOs::Ihm::SM::roasts::IHM_INPUT_TOUCH::[ihmEv->length==5]} */
+            if (ihmEv->length == 5) {
+                RequestRoastsEvt *reqEv = Q_NEW(RequestRoastsEvt, REQUEST_ROASTS_SIG);
+                reqEv->pageNum = me->roasts_page.page + 1;
+                QACTIVE_POST(AO_DataBroker, &reqEv->super, me);
+                status_ = Q_HANDLED();
+            }
+            /*${AOs::Ihm::SM::roasts::IHM_INPUT_TOUCH::[ihmEv->length==5]} */
+            else if (ihmEv->length == 5) {
+                RequestRoastsEvt *reqEv = Q_NEW(RequestRoastsEvt, REQUEST_ROASTS_SIG);
+                reqEv->pageNum = me->roasts_page.page -1;
+                QACTIVE_POST(AO_DataBroker, &reqEv->super, me);
+                status_ = Q_HANDLED();
+            }
+            /*${AOs::Ihm::SM::roasts::IHM_INPUT_TOUCH::[ihmEv->length==8&&strcmp(me->ro~} */
+            else if (ihmEv->length == 8 && strcmp(me->roasts_page.roast3, "") != 0) {
+                strcpy(me->roast_page.roast, me->roasts_page.roast3);
+                status_ = Q_TRAN(&Ihm_roast);
+            }
+            /*${AOs::Ihm::SM::roasts::IHM_INPUT_TOUCH::[ihmEv->length==7&&strcmp(me->ro~} */
+            else if (ihmEv->length == 7 && strcmp(me->roasts_page.roast2, "") != 0) {
+                strcpy(me->roast_page.roast, me->roasts_page.roast2);
+                status_ = Q_TRAN(&Ihm_roast);
+            }
+            /*${AOs::Ihm::SM::roasts::IHM_INPUT_TOUCH::[ihmEv->length==6&&strcmp(me->ro~} */
+            else if (ihmEv->length == 6 && strcmp(me->roasts_page.roast1, "") != 0) {
+                strcpy(me->roast_page.roast, me->roasts_page.roast1);
+                status_ = Q_TRAN(&Ihm_roast);
+            }
+            /*${AOs::Ihm::SM::roasts::IHM_INPUT_TOUCH::[ihmEv->length==1||ihmEv->length~} */
+            else if (ihmEv->length == 1 || ihmEv->length == 3) {
+                status_ = Q_HANDLED();
+            }
+            else {
+                status_ = Q_UNHANDLED();
+            }
+            break;
+        }
         default: {
             status_ = Q_SUPER(&QHsm_top);
             break;
@@ -1685,6 +1945,42 @@ static QState Ihm_config(Ihm * const me, QEvt const * const e) {
             //POST to uart
             postUart_setNumber(CONFIG_PRE_HEAT_NUMBER_VP, respEv->pre_heat);
             postUart_setNumber(CONFIG_ROAST_NUMBER_VP, respEv->roast);
+            status_ = Q_HANDLED();
+            break;
+        }
+        default: {
+            status_ = Q_SUPER(&QHsm_top);
+            break;
+        }
+    }
+    return status_;
+}
+
+/*${AOs::Ihm::SM::recipe} ..................................................*/
+static QState Ihm_recipe(Ihm * const me, QEvt const * const e) {
+    QState status_;
+    switch (e->sig) {
+        /*${AOs::Ihm::SM::recipe} */
+        case Q_ENTRY_SIG: {
+            //Ihm_setupPageRoasts(me, true);
+            status_ = Q_HANDLED();
+            break;
+        }
+        default: {
+            status_ = Q_SUPER(&QHsm_top);
+            break;
+        }
+    }
+    return status_;
+}
+
+/*${AOs::Ihm::SM::roast} ...................................................*/
+static QState Ihm_roast(Ihm * const me, QEvt const * const e) {
+    QState status_;
+    switch (e->sig) {
+        /*${AOs::Ihm::SM::roast} */
+        case Q_ENTRY_SIG: {
+            Ihm_setupPageRoast(me, true);
             status_ = Q_HANDLED();
             break;
         }

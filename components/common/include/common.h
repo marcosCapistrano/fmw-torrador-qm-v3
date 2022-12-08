@@ -145,6 +145,8 @@ typedef struct TempDataTag {
     int count;
     int temps[31];
     int deltas[31];
+    int temp;
+    int delta;
 } TempData;
 
 typedef struct SensorDataTag {
@@ -227,6 +229,20 @@ typedef struct ControlStateTag {
     ControlToggle turbina;
     ControlToggle resfriador;
 } ControlState;
+
+typedef struct RoastsPageDataTag {
+    int page;
+    char roast1[25];
+    char roast2[25];
+    char roast3[25];
+    bool prev;
+    bool next;
+} RoastsPageData;
+
+typedef struct RoastPageDataTag {
+    char roast[25];
+} RoastPageData;
+
 
 typedef struct IhmStateTag {
     ControlState control;

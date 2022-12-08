@@ -71,9 +71,9 @@ static QEvt const *dataBrokerQueueSto[20];
 static QEvt const *uartQueueSto[30];
 
 static QSubscrList subscrSto[25];
-static StackType_t ihmStack[8192];
+static StackType_t ihmStack[10000];
 static StackType_t perifStack[4096];
-static StackType_t dataBrokerStack[16384];
+static StackType_t dataBrokerStack[24000];
 static StackType_t uartStack[8192];
 
 void setup_peripherals();

@@ -128,29 +128,23 @@ static QState Perif_sensoring(Perif * const me, QEvt const * const e) {
 
             //ESP_LOGE(TAG, "gas here: %d", gas);
 
-            //if(temp_grao > 0) {
             SensorUpdateEvt *sde_gr;
             sde_gr = Q_NEW(SensorUpdateEvt, SENSOR_UPDATE_SIG);
             sde_gr->type = SENSOR_GRAO;
             sde_gr->value = temp_grao;
             QACTIVE_POST(AO_DataBroker, &sde_gr->super, me);
-            //}
 
-            if(temp_ar > 0) {
             SensorUpdateEvt *sde_ar;
             sde_ar = Q_NEW(SensorUpdateEvt, SENSOR_UPDATE_SIG);
             sde_ar->type = SENSOR_AR;
             sde_ar->value = temp_ar;
             QACTIVE_POST(AO_DataBroker, &sde_ar->super, me);
-            }
 
-            if(gas > 0) {
             SensorUpdateEvt *sde_gas;
             sde_gas = Q_NEW(SensorUpdateEvt, SENSOR_UPDATE_SIG);
             sde_gas->type = SENSOR_GAS;
             sde_gas->value = temp_grao;
             QACTIVE_POST(AO_DataBroker, &sde_gas->super, me);
-            }
 
             QTimeEvt_rearm(&me->sensorTimeEvt, SENSOR_INTERVAL);
             status_ = Q_HANDLED();

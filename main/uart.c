@@ -300,6 +300,8 @@ static void Uart_changeText(
     int length = packet_write_vp(vp, text, strlen(text), container);
 
     uart_write_bytes(UART_NUM, container, length);
+
+    ESP_LOGE(TAG, "BYTES: %d", length);
 }
 
 /*${AOs::Uart::changeGraphicsCircle} .......................................*/

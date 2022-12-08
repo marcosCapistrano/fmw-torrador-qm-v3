@@ -238,19 +238,17 @@ esp_err_t storage_get_current_roast_summary(int *temps_ar, int *temps_grao, int 
 }
 
 static int cmp_by_date(const void *a, const void *b) {
-    struct stat aStat;
-    struct stat bStat;
+    char ptr[25];
+    long ret1 = strtol(*(char **)a, &ptr, 10);
+    long ret2 = strtol(*(char **)b, &ptr, 10);
 
-    stat(*(char **)a, &aStat);
-    stat(*(char **)b, &bStat);
-
-    return (aStat.st_mtime - bStat.st_mtime);
+    return ret1 - ret2;
 }
 
 static int get_last_entries_from_dir(char *base_path, uint8_t pageNum, char *roast1, char *roast2, char *roast3) {
     DIR *dir = opendir(base_path);
     struct dirent *entry = readdir(dir);
-    char roast_names[25][25];
+    char roasts[25][25];
 
     int count = 0;
     int ret = -1;
@@ -260,39 +258,51 @@ static int get_last_entries_from_dir(char *base_path, uint8_t pageNum, char *roa
             break;
         }
 
-        sprintf(full_path, "%s/%s", base_path, entry->d_name);
-        strcpy(roast_names[i], full_path);
+        snprintf(full_path, sizeof(full_path) / sizeof(full_path[0]), "%s/%s", base_path, entry->d_name);
+        strcpy(roasts[i], full_path);
 
         entry = readdir(dir);
         count++;
         ret++;
     }
 
+    ESP_LOGE(TAG, "count: %d", count);
+
     if (count == 0) {
         ESP_LOGE(TAG, "STORAGE_GET_LAST_ENTRIES: Nenhum arquivo encontrado");
         return -1;
     }
 
-    qsort((void *)roast_names, count, (sizeof(roast_names) / sizeof(roast_names[0])), cmp_by_date);
+    qsort(&roasts, count, sizeof(roasts[0]), cmp_by_date);
 
-    if (count > 0)
-        strcpy(roast1, roast_names[pageNum]);
-    if (count > 1)
-        strcpy(roast2, roast_names[pageNum + 1]);
-    if (count > 2)
-        strcpy(roast3, roast_names[pageNum + 2]);
+    for(int i=0; i<25; i++) {
+        ESP_LOGE(TAG, "[%d]: %s", i, roasts[i]);
+    }
+
+    if (count > 0) {
+        strcpy(roast1, roasts[pageNum]);
+    }
+    if (count > 1) {
+        strcpy(roast2, roasts[pageNum + 1]);
+    }
+    if (count > 2) {
+        strcpy(roast3, roasts[pageNum+2]);
+    }
 
     closedir(dir);
     return ret;
 }
 
 int storage_get_roasts_page(uint8_t pageNum, RoastsResponse *res) {
+    ESP_LOGE(TAG, "Getting roasts page");
     int ret = get_last_entries_from_dir("/storage/roasts", pageNum, res->roast1, res->roast2, res->roast3);
 
     if (ret == -1)
         return -1;
 
     res->pageNum = pageNum;
+    ESP_LOGE(TAG, "%d", pageNum);
+    ESP_LOGE(TAG, "%d", res->pageNum);
 
     if (pageNum > 0)
         res->prevPage = true;
