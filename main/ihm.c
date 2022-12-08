@@ -74,7 +74,7 @@ Q_DEFINE_THIS_FILE
 #define ROASTS_ICON_ROAST3_VP 189
 #define ROAST_BTN_ICON_VP 185
 
-#define SENSOR_GAS_TEXT_VP 10000
+#define SENSOR_GAS_TEXT_VP 4082
 #define SENSOR_AR_TEXT_VP 61
 #define DELTA_AR_TEXT_VP 67
 #define SENSOR_GRAO_TEXT_VP 49
@@ -865,6 +865,37 @@ static void Ihm_setupPageControls(Ihm * const me) {
 
     postUart_setString(CONTROL_CILINDRO_TEXT_VP, cilStr, true, CONTROL_CILINDRO_TEXT_LEN);
     postUart_setIcon(CONTROL_CILINDRO_ICON_VP, cilIcon);
+
+    int icon = 0;
+    if(me->state.control.turbina == 0) {
+            me->state.control.turbina = TOGGLE_OFF;
+            icon = 0;
+        } else if(me->state.control.turbina == 70) {
+            me->state.control.turbina = TOGGLE_SEVENTY;
+            icon = 1;
+        } else if(me->state.control.turbina == 80) {
+            me->state.control.turbina = TOGGLE_EIGHTY;
+            icon = 2;
+        } else if(me->state.control.turbina == 90) {
+            me->state.control.turbina = TOGGLE_NINETY;
+            icon = 3;
+        } else if(me->state.control.turbina == 100) {
+            me->state.control.turbina = TOGGLE_MAX;
+            icon = 4;
+        }
+
+         postUart_setIcon(CONTROL_TURBINA_ICON_VP, icon);
+
+    int icon2 = 0;
+
+        if(me->state.control.resfriador == 0) {
+            icon2 = 0;
+            me->state.control.resfriador = TOGGLE_OFF;
+        } else {
+            icon2 = 4;
+            me->state.control.resfriador = TOGGLE_MAX;
+        }
+        postUart_setIcon(CONTROL_RESFRIADOR_ICON_VP, icon2);
 }
 
 /*${AOs::Ihm::requestExitMode} .............................................*/
@@ -2077,9 +2108,13 @@ static QState Ihm_recipe(Ihm * const me, QEvt const * const e) {
         /*${AOs::Ihm::SM::recipe::IHM_INPUT_TOUCH} */
         case IHM_INPUT_TOUCH_SIG: {
             IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);
-            /*${AOs::Ihm::SM::recipe::IHM_INPUT_TOUCH::[ihmEv->length==3]} */
-            if (ihmEv->length == 3) {
+            /*${AOs::Ihm::SM::recipe::IHM_INPUT_TOUCH::[ihmEv->length==4]} */
+            if (ihmEv->length == 4) {
                 status_ = Q_TRAN(&Ihm_auto_mode);
+            }
+            /*${AOs::Ihm::SM::recipe::IHM_INPUT_TOUCH::[ihmEv->length==3]} */
+            else if (ihmEv->length == 3) {
+                status_ = Q_TRAN(&Ihm_recipes);
             }
             else {
                 status_ = Q_UNHANDLED();
@@ -2114,12 +2149,12 @@ static QState Ihm_roast(Ihm * const me, QEvt const * const e) {
         /*${AOs::Ihm::SM::roast::IHM_INPUT_TOUCH} */
         case IHM_INPUT_TOUCH_SIG: {
             IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);
-            /*${AOs::Ihm::SM::roast::IHM_INPUT_TOUCH::[ihmEv->length==1]} */
-            if (ihmEv->length == 1) {
+            /*${AOs::Ihm::SM::roast::IHM_INPUT_TOUCH::[ihmEv->length==4]} */
+            if (ihmEv->length == 4) {
                 status_ = Q_TRAN(&Ihm_roasts);
             }
-            /*${AOs::Ihm::SM::roast::IHM_INPUT_TOUCH::[ihmEv->length==3]} */
-            else if (ihmEv->length == 3) {
+            /*${AOs::Ihm::SM::roast::IHM_INPUT_TOUCH::[ihmEv->length==4]} */
+            else if (ihmEv->length == 4) {
                 RequestTransformRoastEvt *rtr = Q_NEW(RequestTransformRoastEvt, REQUEST_TRANSFORM_ROAST_SIG);
                 strcpy(rtr->roast, me->roast_page.roast);
 
@@ -2148,7 +2183,6 @@ static QState Ihm_auto_mode(Ihm * const me, QEvt const * const e) {
             ESP_LOGD(TAG, "[AUTO_MODE][ENTRY]");
 
             Ihm_resetState(me);
-
             RequestModeEvt *ram = Q_NEW(RequestModeEvt, REQUEST_MODE_SIG);
             ram->mode = MODE_AUTO;
             ESP_LOGE(TAG, "NAME: %s", me->roast_page.roast);
@@ -2160,6 +2194,7 @@ static QState Ihm_auto_mode(Ihm * const me, QEvt const * const e) {
         /*${AOs::Ihm::SM::auto_mode} */
         case Q_EXIT_SIG: {
             ESP_LOGD(TAG, "[MANUAL_MODE][EXIT]");
+            Ihm_resetState(me);
             QTimeEvt_disarm(&me->stageTimerEvt);
             status_ = Q_HANDLED();
             break;

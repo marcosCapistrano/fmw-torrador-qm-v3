@@ -516,7 +516,38 @@ char cilStr[100] = {0};
 strcpy(cilStr, itoa(cilValue, cilStr, 10));
 
 postUart_setString(CONTROL_CILINDRO_TEXT_VP, cilStr, true, CONTROL_CILINDRO_TEXT_LEN);
-postUart_setIcon(CONTROL_CILINDRO_ICON_VP, cilIcon);</code>
+postUart_setIcon(CONTROL_CILINDRO_ICON_VP, cilIcon);
+
+int icon = 0;
+if(me-&gt;state.control.turbina == 0) {
+        me-&gt;state.control.turbina = TOGGLE_OFF;
+        icon = 0;
+    } else if(me-&gt;state.control.turbina == 70) {
+        me-&gt;state.control.turbina = TOGGLE_SEVENTY;
+        icon = 1;
+    } else if(me-&gt;state.control.turbina == 80) {
+        me-&gt;state.control.turbina = TOGGLE_EIGHTY;
+        icon = 2;
+    } else if(me-&gt;state.control.turbina == 90) {
+        me-&gt;state.control.turbina = TOGGLE_NINETY;
+        icon = 3;
+    } else if(me-&gt;state.control.turbina == 100) {
+        me-&gt;state.control.turbina = TOGGLE_MAX;
+        icon = 4;
+    }
+
+     postUart_setIcon(CONTROL_TURBINA_ICON_VP, icon);
+
+int icon2 = 0;
+
+    if(me-&gt;state.control.resfriador == 0) {
+        icon2 = 0;
+        me-&gt;state.control.resfriador = TOGGLE_OFF;
+    } else {
+        icon2 = 4;
+        me-&gt;state.control.resfriador = TOGGLE_MAX;
+    }
+    postUart_setIcon(CONTROL_RESFRIADOR_ICON_VP, icon2);</code>
    </operation>
    <operation name="requestExitMode" type="void" visibility="0x02" properties="0x01">
     <code>RequestModeEvt *ram = Q_NEW(RequestModeEvt, REQUEST_MODE_SIG);
@@ -1478,8 +1509,14 @@ Ihm_setupPageRoast(me, true);</entry>
      <tran trig="IHM_INPUT_TOUCH">
       <action>IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);</action>
       <choice target="../../../8">
-       <guard>ihmEv-&gt;length == 3</guard>
+       <guard>ihmEv-&gt;length == 4</guard>
        <choice_glyph conn="215,351,5,3,42,-125,63">
+        <action box="1,0,10,2"/>
+       </choice_glyph>
+      </choice>
+      <choice target="../../../3">
+       <guard>ihmEv-&gt;length == 3</guard>
+       <choice_glyph conn="215,351,4,2,-22">
         <action box="1,0,10,2"/>
        </choice_glyph>
       </choice>
@@ -1499,13 +1536,13 @@ Ihm_setupPageRoast(me, false);</entry>
      <tran trig="IHM_INPUT_TOUCH">
       <action>IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);</action>
       <choice target="../../../4">
-       <guard>ihmEv-&gt;length == 1</guard>
+       <guard>ihmEv-&gt;length == 4</guard>
        <choice_glyph conn="198,442,5,2,-1,-31">
         <action box="1,0,10,2"/>
        </choice_glyph>
       </choice>
       <choice>
-       <guard>ihmEv-&gt;length == 3</guard>
+       <guard>ihmEv-&gt;length == 4</guard>
        <action>RequestTransformRoastEvt *rtr = Q_NEW(RequestTransformRoastEvt, REQUEST_TRANSFORM_ROAST_SIG);
 strcpy(rtr-&gt;roast, me-&gt;roast_page.roast);
 
@@ -1527,13 +1564,13 @@ QACTIVE_POST(AO_DataBroker, &amp;rtr-&gt;super, me);</action>
      <entry>ESP_LOGD(TAG, &quot;[AUTO_MODE][ENTRY]&quot;);
 
 Ihm_resetState(me);
-
 RequestModeEvt *ram = Q_NEW(RequestModeEvt, REQUEST_MODE_SIG);
 ram-&gt;mode = MODE_AUTO;
 ESP_LOGE(TAG, &quot;NAME: %s&quot;, me-&gt;roast_page.roast);
 strcpy(ram-&gt;roast, me-&gt;roast_page.roast);
 QACTIVE_POST(AO_DataBroker, &amp;ram-&gt;super, me);</entry>
      <exit>ESP_LOGD(TAG, &quot;[MANUAL_MODE][EXIT]&quot;);
+Ihm_resetState(me);
 QTimeEvt_disarm(&amp;me-&gt;stageTimerEvt);</exit>
      <initial target="../3/3/3/0">
       <action>NotifyNextStageEvt *notEv = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
@@ -4144,7 +4181,7 @@ Q_DEFINE_THIS_FILE
 #define ROASTS_ICON_ROAST3_VP 189
 #define ROAST_BTN_ICON_VP 185
 
-#define SENSOR_GAS_TEXT_VP 10000
+#define SENSOR_GAS_TEXT_VP 4082
 #define SENSOR_AR_TEXT_VP 61
 #define DELTA_AR_TEXT_VP 67 
 #define SENSOR_GRAO_TEXT_VP 49
