@@ -208,7 +208,7 @@ static void Uart_processEvent(
             UartInputTouchEvt *ure = Q_NEW(UartInputTouchEvt, UART_INPUT_TOUCH_SIG);
             ure->length = end-start;
 
-            ESP_LOGI(TAG, "[TOUCH], Length: %d", (end-start));
+            ESP_LOGE(TAG, "[TOUCH], Length: %d", (end-start));
             QACTIVE_POST(AO_Uart, &ure->super, me);
         }
     } else {
@@ -300,8 +300,6 @@ static void Uart_changeText(
     int length = packet_write_vp(vp, text, strlen(text), container);
 
     uart_write_bytes(UART_NUM, container, length);
-
-    ESP_LOGE(TAG, "BYTES: %d", length);
 }
 
 /*${AOs::Uart::changeGraphicsCircle} .......................................*/

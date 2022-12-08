@@ -275,10 +275,6 @@ static int get_last_entries_from_dir(char *base_path, uint8_t pageNum, char *roa
 
     qsort(&roasts, count, sizeof(roasts[0]), cmp_by_date);
 
-    for(int i=0; i<25; i++) {
-        ESP_LOGE(TAG, "[%d]: %s", i, roasts[i]);
-    }
-
     if (count > 0) {
         strcpy(roast1, roasts[pageNum]);
     }
@@ -381,6 +377,7 @@ static EntryType parse_data_from_entry(char *line, int *out_value, time_t *inter
 }
 
 void storage_transform_roast(char *roast) {
+    ESP_LOGE(TAG, "TRANSFORMINGG");
     uint32_t new_recipe_num = recipe_number + 1;
     set_recipe_number(new_recipe_num);
 

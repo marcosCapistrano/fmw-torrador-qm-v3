@@ -52,6 +52,7 @@ typedef struct {
     RecipeData curr_recipe;
     QTimeEvt recipeTimerEvt;
     time_t timer_start;
+    CommandData next_command;
 } DataBroker;
 
 /* private: */
@@ -141,6 +142,7 @@ static void DataBroker_updateSensorData(DataBroker * const me,
             }
         }
 
+    /*
         if(type == SENSOR_GRAO) {
             printf("Grao temps: ");
             for(int i=0; i<graoData->count; i++) {
@@ -166,6 +168,7 @@ static void DataBroker_updateSensorData(DataBroker * const me,
             }
             printf("\n");
         }
+    */
 
         if(type == SENSOR_GRAO) {
             if(graoData->count < 31) {
@@ -234,16 +237,10 @@ static void DataBroker_updateSensorData(DataBroker * const me,
 
 /*${AOs::DataBroker::setupRecipe} ..........................................*/
 static void DataBroker_setupRecipe(DataBroker * const me) {
-    /*
-    me->recipe_commands = (RecipeCommands){
-        .intervals = {0},
-        .controls = {0},
-        .values = {0},
-        .count = 0,
-    };
-    me->curr_command = 0;
-    storage_get_recipe_commands(me->curr_mode.roast, &me->recipe_commands);
-    */
+    me->curr_recipe.count = 0;
+    me->curr_recipe.curr_command = 0;
+
+    storage_get_recipe_data(me->curr_recipe.name, &me->curr_recipe);
 }
 
 /*${AOs::DataBroker::resetData} ............................................*/
@@ -302,6 +299,7 @@ static void DataBroker_resetRecipe(DataBroker * const me) {
     me->curr_recipe.values = {0};
     */
     me->curr_recipe.count = 0;
+    strcpy(me->curr_recipe.name, "");
 }
 
 /*${AOs::DataBroker::SM} ...................................................*/
@@ -454,10 +452,9 @@ static QState DataBroker_idle(DataBroker * const me, QEvt const * const e) {
                 strcpy(nme2->roast,rme->roast);
                 QACTIVE_POST(AO_Ihm, &nme2->super, me);
 
-                /*
-                me->curr_mode.mode = MODE_AUTO;
-                strcpy(me->curr_mode.roast, rme->roast);
-                */
+                DataBroker_resetData(me);
+
+                strcpy(me->curr_recipe.name, rme->roast);
                 status_ = Q_TRAN(&DataBroker_auto_pre_heating);
             }
             else {
@@ -525,6 +522,7 @@ static QState DataBroker_idle(DataBroker * const me, QEvt const * const e) {
         }
         /*${AOs::DataBroker::SM::state1::idle::REQUEST_TRANSFORM_ROAST} */
         case REQUEST_TRANSFORM_ROAST_SIG: {
+            ESP_LOGE(TAG, "transinawoe");
             RequestTransformRoastEvt *rtr = Q_EVT_CAST(RequestTransformRoastEvt);
 
             char roast[25];
@@ -614,7 +612,6 @@ static QState DataBroker_pre_heating(DataBroker * const me, QEvt const * const e
     switch (e->sig) {
         /*${AOs::DataBroker::SM::state1::active_mode::pre_heating} */
         case Q_ENTRY_SIG: {
-            DataBroker_resetData(me);
             storage_create_new_roast(&me->curr_roast.name);
             status_ = Q_HANDLED();
             break;
@@ -657,8 +654,8 @@ static QState DataBroker_auto_pre_heating(DataBroker * const me, QEvt const * co
         case Q_ENTRY_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][AUTO_PRE_HEATING][ENTRY]");
 
-            //ESP_LOGE(TAG, "recipe: %s", me->curr_mode.roast);
-            //DataBroker_setupRecipe(me);
+            ESP_LOGE(TAG, "recipe: %s", me->curr_recipe.name);
+            DataBroker_setupRecipe(me);
             status_ = Q_HANDLED();
             break;
         }
@@ -775,6 +772,19 @@ static QState DataBroker_roasting(DataBroker * const me, QEvt const * const e) {
             if(time_elapsed % 5 == 0) {
                 storage_add_roast_sensor_record(time_elapsed, sensorEv->type, sensorEv->value);
                 DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, true);
+
+                ChartDataEvt *chartEv = Q_NEW(ChartDataEvt, CHART_DATA_SIG);
+                chartEv->type = sensorEv->type;
+
+                if(sensorEv->type == SENSOR_GRAO)
+                    chartEv->temp_data = &me->curr_roast.sensor_data.grao;
+                else if(sensorEv->type == SENSOR_AR)
+                    chartEv->temp_data = &me->curr_roast.sensor_data.ar;
+
+                chartEv->max = me->curr_roast.sensor_data.max;
+                chartEv->min = me->curr_roast.sensor_data.min;
+
+                QACTIVE_POST(AO_Ihm, chartEv, me);
             } else {
                 DataBroker_updateSensorData(me, sensorEv->type, sensorEv->value, false);
             }
@@ -842,22 +852,33 @@ static QState DataBroker_auto_roasting(DataBroker * const me, QEvt const * const
         case Q_ENTRY_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][AUTO_ROASTING][ENTRY]");
 
-
-            /*
             time_t time_now;
             time(&time_now);
 
-            time_t time_elapsed = time_now - me->time_start;
-            time_t time_command = (me->recipe_commands.intervals[me->curr_command] - time_elapsed);
+            time_t time_elapsed = time_now - me->curr_roast.time_start;
+            time_t time_command = (me->curr_recipe.intervals[me->curr_recipe.curr_command] - time_elapsed);
 
             if(time_command <= 0)
                 time_command = 1;
 
-            if(me->curr_command < me->recipe_commands.count) {
-                ESP_LOGD(TAG, "Scheduled command %d for %lds - value: %d", me->recipe_commands.controls[me->curr_command], time_command, me->recipe_commands.values[me->curr_command]);
+            if(me->curr_recipe.curr_command < me->curr_recipe.count) {
+                ESP_LOGD(TAG, "Scheduled command %d for %lds - value: %d", me->curr_recipe.controls[me->curr_recipe.curr_command], time_command, me->curr_recipe.values[me->curr_recipe.curr_command]);
+
+            /*
+                if(me->curr_recipe.controls[me->curr_recipe.curr_command] == POTENCIA) {
+                    sprintf(me->next_command.command, "POTENCIA: %d", me->curr_recipe.values[me->curr_recipe.curr_command]);
+                    me->next_command.time = time_command;
+                } else if(me->curr_recipe.controls[me->curr_recipe.curr_command] == CILINDRO) {
+                    sprintf(me->next_command.command, "CILINDRO: %d", me->curr_recipe.values[me->curr_recipe.curr_command]);
+                    me->next_command.time = time_command;
+                } else if(me->curr_recipe.controls[me->curr_recipe.curr_command] == TURBINA) {
+                    sprintf(me->next_command.command, "TURBINA: %d", me->curr_recipe.values[me->curr_recipe.curr_command]);
+                    me->next_command.time = time_command;
+                }
+
+                */
                 QTimeEvt_armX(&me->recipeTimerEvt, time_command * CONFIG_FREERTOS_HZ, 0U);
             }
-            */
             status_ = Q_HANDLED();
             break;
         }
@@ -882,38 +903,31 @@ static QState DataBroker_auto_roasting(DataBroker * const me, QEvt const * const
         /*${AOs::DataBroker::SM::state1::active_mode::roasting::auto_roasting::DATA_RECIPE_TIMEOUT} */
         case DATA_RECIPE_TIMEOUT_SIG: {
             QTimeEvt_disarm(&me->recipeTimerEvt);
-            /*
-            ControlType control = me->recipe_commands.controls[me->curr_command];
-            int value = me->recipe_commands.values[me->curr_command];
 
-            UpdateControlEvt *contEv = Q_NEW(UpdateControlEvt, UPDATE_CONTROL_SIG);
+            ControlType control = me->curr_recipe.controls[me->curr_recipe.curr_command];
+            int value = me->curr_recipe.values[me->curr_recipe.curr_command];
+
+            ControlUpdateEvt *contEv = Q_NEW(ControlUpdateEvt, CONTROL_UPDATE_SIG);
             contEv->control = control;
             contEv->value = value;
             QACTIVE_POST(AO_Perif, contEv, me);
 
-
-            ControlDataEvt *contEv2 = Q_EVT_CAST(ControlDataEvt);
-            contEv2->control = control;
-            contEv2->value = value;
-            QACTIVE_POST(AO_Ihm, contEv, me);
-
-
-            me->curr_command += 1;
+            me->curr_recipe.curr_command += 1;
 
             time_t time_now;
             time(&time_now);
 
-            time_t time_elapsed = time_now - me->time_start;
-            time_t time_command = (me->recipe_commands.intervals[me->curr_command] - time_elapsed);
+            time_t time_elapsed = time_now - me->curr_roast.time_start;
+            time_t time_command = (me->curr_recipe.intervals[me->curr_recipe.curr_command] - time_elapsed);
 
             if(time_command <= 0)
                 time_command = 1;
 
-            if(me->curr_command < me->recipe_commands.count) {
-                ESP_LOGD(TAG, "Scheduled command %d for %lds - value: %d", me->recipe_commands.controls[me->curr_command], time_command, me->recipe_commands.values[me->curr_command]);
+            if(me->curr_recipe.curr_command < me->curr_recipe.count) {
+                ESP_LOGD(TAG, "Scheduled command %d for %lds - value: %d", me->curr_recipe.controls[me->curr_recipe.curr_command], time_command, me->curr_recipe.values[me->curr_recipe.curr_command]);
                 QTimeEvt_armX(&me->recipeTimerEvt, time_command * CONFIG_FREERTOS_HZ, 0U);
             }
-            */
+
             status_ = Q_HANDLED();
             break;
         }
@@ -1020,8 +1034,6 @@ static QState DataBroker_auto_cooling(DataBroker * const me, QEvt const * const 
         /*${AOs::DataBroker::SM::state1::active_mode::cooling::auto_cooling} */
         case Q_ENTRY_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][AUTO_COOLING][ENTRY]");
-
-
             status_ = Q_HANDLED();
             break;
         }
@@ -1029,7 +1041,7 @@ static QState DataBroker_auto_cooling(DataBroker * const me, QEvt const * const 
         case Q_EXIT_SIG: {
             ESP_LOGI(TAG, "[ACTIVE_MODE][AUTO_COOLING][EXIT]");
 
-            //QTimeEvt_disarm(&me->recipeTimerEvt);
+            QTimeEvt_disarm(&me->recipeTimerEvt);
             status_ = Q_HANDLED();
             break;
         }
@@ -1288,6 +1300,8 @@ static QState DataBroker_sensoring(DataBroker * const me, QEvt const * const e) 
             NotifyNextStageEvt *stageEv2 = Q_NEW(NotifyNextStageEvt, NOTIFY_NEXT_STAGE_SIG);
             stageEv->auto_mode = false;
             QACTIVE_POST(AO_Perif, &stageEv2->super, me);
+
+            DataBroker_resetData(me);
             status_ = Q_TRAN(&DataBroker_manual_pre_heating);
             break;
         }

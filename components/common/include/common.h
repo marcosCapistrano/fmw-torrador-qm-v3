@@ -149,6 +149,11 @@ typedef struct TempDataTag {
     int delta;
 } TempData;
 
+typedef struct CommandDataTag {
+    char command[15];
+    time_t time;
+} CommandData;
+
 typedef struct SensorDataTag {
     TempData ar;
     TempData grao;
@@ -203,6 +208,7 @@ typedef struct RoastDataTag {
 } RoastData;
 
 typedef struct RecipeDataTag {
+    char name[25];
     time_t intervals[100];
     ControlType controls[100];
     int values[100];
@@ -550,16 +556,6 @@ typedef struct {
     SubstageType substage;
 } RequestNextSubstageEvt;
 
-/*${Events::ChartDataEvt} ..................................................*/
-typedef struct {
-/* protected: */
-    QEvt super;
-
-/* public: */
-    SensorData * sensorData;
-    SensorType type;
-} ChartDataEvt;
-
 /*${Events::UartInputConfigSaveEvt} ........................................*/
 typedef struct {
 /* protected: */
@@ -621,6 +617,18 @@ typedef struct {
 /* protected: */
     QEvt super;
 } NotifySubstageExitEvt;
+
+/*${Events::ChartDataEvt} ..................................................*/
+typedef struct {
+/* protected: */
+    QEvt super;
+
+/* public: */
+    SensorType type;
+    TempData * temp_data;
+    int max;
+    int min;
+} ChartDataEvt;
 /*$enddecl${Events} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
 
 /*$declare${AOs::Ihm_ctor} vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv*/

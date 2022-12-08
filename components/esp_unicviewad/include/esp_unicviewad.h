@@ -7,10 +7,7 @@
 #define MAX_CONTAINER_SIZE 258
 #define MAX_PAYLOAD_SIZE 253
 
-#define VP_CHART_LINE_GRAO 866
-#define VP_CHART_CIRCLE_GRAO 1109
-#define VP_CHART_LINE_AR 988
-#define VP_CHART_CIRCLE_AR 208
+
 
 /* STANDARD UNICVIEW COMMANDS */
 void *swapbytes(void *inp, size_t len);

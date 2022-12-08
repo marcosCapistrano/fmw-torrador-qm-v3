@@ -389,6 +389,8 @@ static QState Perif_cooling(Perif * const me, QEvt const * const e) {
         /*${AOs::Perif::SM::cooling} */
         case Q_EXIT_SIG: {
             ESP_LOGD(TAG, "[COOLING][EXIT]");
+
+            QTimeEvt_disarm(&me->sensorTimeEvt);
             status_ = Q_HANDLED();
             break;
         }
@@ -446,6 +448,36 @@ static QState Perif_cooling(Perif * const me, QEvt const * const e) {
                 cilindro_set_duty(me->wantedCil);
                 me->realCil = me->wantedCil;
             }
+            status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Perif::SM::cooling::SENSOR_TIMEOUT} */
+        case SENSOR_TIMEOUT_SIG: {
+            int temp_ar = sample_sensor_ar();
+            int gas = sample_sensor_gas();
+            int temp_grao = sample_sensor_grao();
+
+            //ESP_LOGE(TAG, "gas here: %d", gas);
+
+            SensorUpdateEvt *sde_gr;
+            sde_gr = Q_NEW(SensorUpdateEvt, SENSOR_UPDATE_SIG);
+            sde_gr->type = SENSOR_GRAO;
+            sde_gr->value = temp_grao;
+            QACTIVE_POST(AO_DataBroker, &sde_gr->super, me);
+
+            SensorUpdateEvt *sde_ar;
+            sde_ar = Q_NEW(SensorUpdateEvt, SENSOR_UPDATE_SIG);
+            sde_ar->type = SENSOR_AR;
+            sde_ar->value = temp_ar;
+            QACTIVE_POST(AO_DataBroker, &sde_ar->super, me);
+
+            SensorUpdateEvt *sde_gas;
+            sde_gas = Q_NEW(SensorUpdateEvt, SENSOR_UPDATE_SIG);
+            sde_gas->type = SENSOR_GAS;
+            sde_gas->value = temp_grao;
+            QACTIVE_POST(AO_DataBroker, &sde_gas->super, me);
+
+            QTimeEvt_rearm(&me->sensorTimeEvt, SENSOR_INTERVAL);
             status_ = Q_HANDLED();
             break;
         }

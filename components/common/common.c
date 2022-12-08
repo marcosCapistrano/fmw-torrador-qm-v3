@@ -79,11 +79,9 @@ void postUart_setString(
         QACTIVE_POST(AO_Uart, &resetEv->super, me);
     }
 
-    ESP_LOGE(TAG, "len: %d", strlen(text));
     if(strlen(text) > reset_len) {
         strcpy(&text[reset_len-1], "\0");
     }
-    ESP_LOGE(TAG, "len: %d", strlen(text));
 
     UartOutputTextEvt *textEv = Q_NEW(UartOutputTextEvt, UART_OUTPUT_TEXT_SIG);
     textEv->vp = vp;
