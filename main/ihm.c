@@ -867,33 +867,26 @@ static void Ihm_setupPageControls(Ihm * const me) {
     postUart_setIcon(CONTROL_CILINDRO_ICON_VP, cilIcon);
 
     int icon = 0;
-    if(me->state.control.turbina == 0) {
-            me->state.control.turbina = TOGGLE_OFF;
+        if(me->state.control.turbina == TOGGLE_OFF) {
             icon = 0;
-        } else if(me->state.control.turbina == 70) {
-            me->state.control.turbina = TOGGLE_SEVENTY;
+        } else if(me->state.control.turbina == TOGGLE_SEVENTY) {
             icon = 1;
-        } else if(me->state.control.turbina == 80) {
-            me->state.control.turbina = TOGGLE_EIGHTY;
+        } else if(me->state.control.turbina == TOGGLE_EIGHTY) {
             icon = 2;
-        } else if(me->state.control.turbina == 90) {
-            me->state.control.turbina = TOGGLE_NINETY;
+        } else if(me->state.control.turbina == TOGGLE_NINETY) {
             icon = 3;
-        } else if(me->state.control.turbina == 100) {
-            me->state.control.turbina = TOGGLE_MAX;
+        } else if(me->state.control.turbina == TOGGLE_MAX) {
             icon = 4;
         }
 
-         postUart_setIcon(CONTROL_TURBINA_ICON_VP, icon);
+    postUart_setIcon(CONTROL_TURBINA_ICON_VP, icon);
 
     int icon2 = 0;
 
-        if(me->state.control.resfriador == 0) {
+        if(me->state.control.resfriador == TOGGLE_OFF) {
             icon2 = 0;
-            me->state.control.resfriador = TOGGLE_OFF;
         } else {
             icon2 = 4;
-            me->state.control.resfriador = TOGGLE_MAX;
         }
         postUart_setIcon(CONTROL_RESFRIADOR_ICON_VP, icon2);
 }
@@ -1450,18 +1443,6 @@ static QState Ihm_pre_heating(Ihm * const me, QEvt const * const e) {
             status_ = Q_TRAN(&Ihm_roasting);
             break;
         }
-        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::pre_heating::SENSOR_DATA} */
-        case SENSOR_DATA_SIG: {
-            /*${AOs::Ihm::SM::manual_mode::manual_events::manual_page::active::pre_heating::SENSOR_DATA::[false]} */
-            if (false) {
-                ESP_LOGD(TAG, "Sensor data here!");
-                status_ = Q_HANDLED();
-            }
-            else {
-                status_ = Q_UNHANDLED();
-            }
-            break;
-        }
         default: {
             status_ = Q_SUPER(&Ihm_active);
             break;
@@ -2000,7 +1981,7 @@ static QState Ihm_roasts(Ihm * const me, QEvt const * const e) {
             /*${AOs::Ihm::SM::roasts::IHM_INPUT_TOUCH::[ihmEv->length==5]} */
             else if (ihmEv->length == 5) {
                 RequestRoastsEvt *reqEv = Q_NEW(RequestRoastsEvt, REQUEST_ROASTS_SIG);
-                reqEv->pageNum = me->roasts_page.page -1;
+                reqEv->pageNum = me->roasts_page.page - 1;
                 QACTIVE_POST(AO_DataBroker, &reqEv->super, me);
                 status_ = Q_HANDLED();
             }
@@ -2645,18 +2626,6 @@ static QState Ihm_auto_pre_heating(Ihm * const me, QEvt const * const e) {
         case NOTIFY_NEXT_STAGE_SIG: {
             QHSM_DISPATCH((QHsm *)&me->stage, e, me->super.prio);
             status_ = Q_TRAN(&Ihm_auto_roasting);
-            break;
-        }
-        /*${AOs::Ihm::SM::auto_mode::auto_events::auto_page::auto_active::auto_pre_heating::SENSOR_DATA} */
-        case SENSOR_DATA_SIG: {
-            /*${AOs::Ihm::SM::auto_mode::auto_events::auto_page::auto_active::auto_pre_heating::SENSOR_DATA::[false]} */
-            if (false) {
-                ESP_LOGD(TAG, "Sensor data here!");
-                status_ = Q_HANDLED();
-            }
-            else {
-                status_ = Q_UNHANDLED();
-            }
             break;
         }
         default: {
