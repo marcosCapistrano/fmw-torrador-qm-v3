@@ -381,7 +381,8 @@ QTimeEvt_rearm(&amp;me-&gt;sensorTimeEvt, SENSOR_INTERVAL);</action>
    <attribute name="stage" type="IhmStage" visibility="0x02" properties="0x00"/>
    <attribute name="substage" type="IhmSubstage" visibility="0x02" properties="0x00"/>
    <attribute name="roasts_page" type="RoastsPageData" visibility="0x02" properties="0x00"/>
-   <attribute name="roast_page" type="RoastPageData" visibility="0x00" properties="0x00"/>
+   <attribute name="roast_page" type="RoastPageData" visibility="0x02" properties="0x00"/>
+   <attribute name="control_page" type="ControlPageData" visibility="0x02" properties="0x00"/>
    <operation name="resetData" type="void" visibility="0x02" properties="0x00">
     <code>Ihm_resetState(me);
 Ihm_resetRoastsPageData(me);
@@ -495,69 +496,6 @@ postUart_setString(NAVBAR_TEXT_VP, &quot;RESUMO&quot;, true, NAVBAR_TEXT_LEN);
 
 postUart_setIcon(NAVBAR_ICON_HOME_VP, 1);
 postUart_setIcon(NAVBAR_ICON_GEAR_VP, 0);</code>
-   </operation>
-   <operation name="setupPageConfig" type="void" visibility="0x02" properties="0x01">
-    <code>ESP_LOGD(TAG, &quot;[IHM_SETUP_PAGE_CONFIG]&quot;);
-
-postUart_setPage(CONFIG_PICID);
-postUart_setString(NAVBAR_TEXT_VP, &quot;CONFIGURACOES&quot;, true, NAVBAR_TEXT_LEN);
-postUart_setIcon(NAVBAR_ICON_HOME_VP, 0);
-postUart_setIcon(NAVBAR_ICON_GEAR_VP, 0);
-
-postUart_setNumber(CONFIG_PRE_HEAT_NUMBER_VP, 0);
-postUart_setNumber(CONFIG_ROAST_NUMBER_VP, 0);</code>
-   </operation>
-   <operation name="setupPageControls" type="void" visibility="0x02" properties="0x00">
-    <code>ESP_LOGD(TAG, &quot;[IHM_SETUP_PAGE_CONTROLS]&quot;);
-
-postUart_setPage(CONTROLS_PICID);
-postUart_setString(NAVBAR_TEXT_VP, &quot;CONTROLES&quot;, true, NAVBAR_TEXT_LEN);
-
-postUart_setString(SENSOR_AR_TEXT_VP, &quot;0\0&quot;, true, SENSOR_AR_TEXT_LEN);
-postUart_setString(DELTA_AR_TEXT_VP, &quot;0\0&quot;, true, DELTA_AR_TEXT_LEN);
-
-postUart_setString(SENSOR_GRAO_TEXT_VP, &quot;0\0&quot;, true, SENSOR_GRAO_TEXT_LEN);
-postUart_setString(DELTA_GRAO_TEXT_VP, &quot;0\0&quot;, true, DELTA_GRAO_TEXT_LEN);
-
-uint8_t potValue = ceil(me-&gt;state.control.potencia / 5) * 5;
-uint8_t potIcon = ceil(potValue / 5);
-char potStr[100] = {0};
-strcpy(potStr, itoa(potValue, potStr, 10));
-
-postUart_setString(CONTROL_POTENCIA_TEXT_VP, potStr, true, CONTROL_POTENCIA_TEXT_LEN);
-postUart_setIcon(CONTROL_POTENCIA_ICON_VP, potIcon);
-
-uint8_t cilValue = ceil(me-&gt;state.control.cilindro / 5) * 5;
-uint8_t cilIcon = ceil(cilValue / 5);
-char cilStr[100] = {0};
-strcpy(cilStr, itoa(cilValue, cilStr, 10));
-
-postUart_setString(CONTROL_CILINDRO_TEXT_VP, cilStr, true, CONTROL_CILINDRO_TEXT_LEN);
-postUart_setIcon(CONTROL_CILINDRO_ICON_VP, cilIcon);
-
-int icon = 0;
-    if(me-&gt;state.control.turbina == TOGGLE_OFF) {
-        icon = 0;
-    } else if(me-&gt;state.control.turbina == TOGGLE_SEVENTY) {
-        icon = 1;
-    } else if(me-&gt;state.control.turbina == TOGGLE_EIGHTY) {
-        icon = 2;
-    } else if(me-&gt;state.control.turbina == TOGGLE_NINETY) {
-        icon = 3;
-    } else if(me-&gt;state.control.turbina == TOGGLE_MAX) {
-        icon = 4;
-    }
-
-postUart_setIcon(CONTROL_TURBINA_ICON_VP, icon);
-
-int icon2 = 0;
-
-    if(me-&gt;state.control.resfriador == TOGGLE_OFF) {
-        icon2 = 0;
-    } else {
-        icon2 = 4;
-    }
-    postUart_setIcon(CONTROL_RESFRIADOR_ICON_VP, icon2);</code>
    </operation>
    <operation name="requestExitMode" type="void" visibility="0x02" properties="0x01">
     <code>RequestModeEvt *ram = Q_NEW(RequestModeEvt, REQUEST_MODE_SIG);
@@ -694,6 +632,139 @@ if(isDelta) {
 */
 QACTIVE_POST(AO_Uart, &amp;chartEv-&gt;super, me);</code>
    </operation>
+   <operation name="setupPageControls" type="void" visibility="0x02" properties="0x01">
+    <code>ESP_LOGD(TAG, &quot;[IHM_SETUP_PAGE_CONTROLS]&quot;);
+
+postUart_setPage(CONTROLS_PICID);
+postUart_setString(NAVBAR_TEXT_VP, &quot;CONTROLES&quot;, true, NAVBAR_TEXT_LEN);
+
+postUart_setString(SENSOR_AR_TEXT_VP, &quot;0\0&quot;, true, SENSOR_AR_TEXT_LEN);
+postUart_setString(DELTA_AR_TEXT_VP, &quot;0\0&quot;, true, DELTA_AR_TEXT_LEN);
+
+postUart_setString(SENSOR_GRAO_TEXT_VP, &quot;0\0&quot;, true, SENSOR_GRAO_TEXT_LEN);
+postUart_setString(DELTA_GRAO_TEXT_VP, &quot;0\0&quot;, true, DELTA_GRAO_TEXT_LEN);
+
+Ihm_updateComponentControl(POTENCIA, 0);
+Ihm_updateComponentControl(CILINDRO, 0);
+Ihm_updateComponentControl(TURBINA, 0);
+Ihm_updateComponentControl(RESFRIADOR, 0);</code>
+   </operation>
+   <operation name="requestPageControls" type="void" visibility="0x02" properties="0x01">
+    <parameter name="max_pre_heat" type="int"/>
+    <parameter name="max_roast" type="int"/>
+    <code>ESP_LOGV(TAG, &quot;[IHM_REQUEST_PAGE_CONTROLS]&quot;);
+
+postData_requestData(
+    DATA_PAGE,
+    (Data){
+        .page_data.type = PAGE_CONTROLS
+    )
+);</code>
+   </operation>
+   <operation name="hidratePageControls" type="void" visibility="0x02" properties="0x00">
+    <parameter name="sensor_grao" type="uint16_t"/>
+    <parameter name="sensor_ar" type="uint16_t"/>
+    <parameter name="potencia" type="uint16_t"/>
+    <parameter name="cilindro" type="uint16_t"/>
+    <parameter name="turbina" type="uint16_t"/>
+    <parameter name="resfriador" type="uint16_t"/>
+    <code>ESP_LOGV(TAG, &quot;[HIDRATE_PAGE_CONTROLS]&quot;);
+
+postUart_setNumberAsString(SENSOR_GRAO_TEXT_VP, sensor_grao, &quot; C&quot;, true, SENSOR_GRAO_TEXT_LEN);
+postUart_setNumberAsString(SENSOR_AR_TEXT_VP, sensor_ar, &quot; C&quot;, true, SENSOR_AR_TEXT_LEN);
+
+Ihm_updateComponentControl(POTENCIA, potencia);
+Ihm_updateComponentControl(CILINDRO, cilindro);
+Ihm_updateComponentControl(TURBINA, turbina);
+Ihm_updateComponentControl(RESFRIADOR, resfriador);</code>
+   </operation>
+   <operation name="setupPageConfig" type="void" visibility="0x02" properties="0x01">
+    <code>ESP_LOGD(TAG, &quot;[IHM_SETUP_PAGE_CONFIG]&quot;);
+
+postUart_setPage(CONFIG_PICID);
+postUart_setString(NAVBAR_TEXT_VP, &quot;CONFIGURACOES&quot;, true, NAVBAR_TEXT_LEN);
+postUart_setIcon(NAVBAR_ICON_HOME_VP, 0);
+postUart_setIcon(NAVBAR_ICON_GEAR_VP, 0);
+
+postUart_setNumber(CONFIG_PRE_HEAT_NUMBER_VP, 0);
+postUart_setNumber(CONFIG_ROAST_NUMBER_VP, 0);</code>
+   </operation>
+   <operation name="requestPageConfig" type="void" visibility="0x02" properties="0x01">
+    <parameter name="max_pre_heat" type="int"/>
+    <parameter name="max_roast" type="int"/>
+    <code>ESP_LOGV(TAG, &quot;[IHM_REQUEST_PAGE_CONFIG]&quot;);
+
+postData_requestData(
+    DATA_PAGE,
+    (Data){
+        .page_data.type = PAGE_CONFIG
+    )
+);</code>
+   </operation>
+   <operation name="hidratePageConfig" type="void" visibility="0x02" properties="0x00">
+    <parameter name="max_pre_heat" type="uint16_t"/>
+    <parameter name="max_roast" type="uint16_t"/>
+    <code>ESP_LOGD(TAG, &quot;[IHM_HIDRATE_PAGE_CONFIG]&quot;);
+
+postUart_setNumber(CONFIG_PRE_HEAT_NUMBER_VP, max_pre_heat);
+postUart_setNumber(CONFIG_ROAST_NUMBER_VP, max_roast);</code>
+   </operation>
+   <operation name="updateComponentControl" type="void" visibility="0x02" properties="0x01">
+    <parameter name="type" type="ControlType"/>
+    <parameter name="value" type="uint16_t"/>
+    <code>ESP_LOGD(TAG, &quot;[UPDATE_COMPONENT_CONTROL]&quot;);
+
+uint16_t new_value = ceil(value / 5) * 5;
+uint8_t icon = ceil(new_value / 5);
+
+char str[10];
+memset(str, &quot;\0&quot;, sizeof(str));
+itoa(new_value, str, 10);
+
+switch(type) {
+    case POTENCIA:
+        postUart_setString(CONTROL_POTENCIA_TEXT_VP, str, true, CONTROL_POTENCIA_TEXT_LEN);
+        postUart_setIcon(CONTROL_POTENCIA_ICON_VP, icon);
+    break;
+
+    case CILINDRO:
+        postUart_setString(CONTROL_CILINDRO_TEXT_VP, str, true, CONTROL_CILINDRO_TEXT_LEN);
+        postUart_setIcon(CONTROL_CILINDRO_ICON_VP, icon);
+    break;
+
+    case TURBINA:
+        icon = 0;
+        if(value == 0) {
+            icon = 0;
+        } else if(value == 70) {
+            icon = 1;
+        } else if(value == 80) {
+            icon = 2;
+        } else if(value == 90) {
+            icon = 3;
+        } else if(value == 100) {
+            icon = 4;
+        } else {
+            ESP_LOGE(TAG, &quot;Turbina recebendo valor outro além dos possiveis: %d&quot;, value);
+        }
+
+        postUart_setIcon(CONTROL_TURBINA_ICON_VP, icon);
+    break;
+
+    case RESFRIADOR:
+        icon = 0;
+        if(value == 0) {
+            icon = 0;
+        } else if(value == 100) {
+            icon = 4;
+        } else {
+            ESP_LOGE(TAG, &quot;Resfriador recebendo valor outro além dos possiveis: %d&quot;, value);
+        }
+
+        postUart_setIcon(CONTROL_RESFRIADOR_ICON_VP, icon);
+    break;
+}</code>
+   </operation>
    <statechart properties="0x00">
     <initial target="../1">
      <action>/* (!) trigger the initial transition in the component */
@@ -732,7 +803,7 @@ Ihm_setupPageMainMenu();</entry>
       </choice>
       <choice target="../../../5">
        <guard>ihmEv-&gt;length == 2</guard>
-       <choice_glyph conn="141,38,5,3,72,-6,2">
+       <choice_glyph conn="141,38,5,3,72,-4,5">
         <action box="1,0,10,2"/>
        </choice_glyph>
       </choice>
@@ -777,22 +848,18 @@ QHSM_DISPATCH((QHsm *)&amp;me-&gt;stage, e, me-&gt;super.prio);</action>
      <state name="manual_config">
       <entry>ESP_LOGD(TAG, &quot;[CONFIG][ENTRY]&quot;);
 
-ESP_LOGE(TAG, &quot;size: %d&quot;, sizeof(unsigned short));
-
 Ihm_setupPageConfig();
-
-RequestConfigEvt *confEv = Q_NEW(RequestConfigEvt, REQUEST_CONFIG_SIG);
-QACTIVE_POST(AO_DataBroker, confEv, me);</entry>
+Ihm_requestDataConfig();</entry>
       <exit>ESP_LOGD(TAG, &quot;[CONFIG][EXIT]&quot;);</exit>
       <tran trig="IHM_INPUT_TOUCH">
        <action>IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);</action>
        <choice target="../../../3/2" cpref="../../../3/2/0">
         <guard>ihmEv-&gt;length == 3</guard>
-        <choice_glyph conn="268,81,4,0,16,-96,7">
+        <choice_glyph conn="269,83,4,0,16,-97,5">
          <action box="1,0,10,2"/>
         </choice_glyph>
        </choice>
-       <tran_glyph conn="253,81,3,-1,15">
+       <tran_glyph conn="254,83,3,-1,15">
         <action box="0,-2,10,2"/>
        </tran_glyph>
       </tran>
@@ -804,21 +871,31 @@ confEv-&gt;pre_heat = ev-&gt;pre;
 confEv-&gt;roast = ev-&gt;roast;
 
 QACTIVE_POST(AO_DataBroker, confEv, me);</action>
-       <tran_glyph conn="263,95,2,0,7,-91,2">
+       <tran_glyph conn="264,97,2,0,7,-92,0">
         <action box="0,-2,10,2"/>
        </tran_glyph>
       </tran>
-      <tran trig="RESPONSE_CONFIG">
-       <action>ResponseConfigEvt *respEv = Q_EVT_CAST(ResponseConfigEvt);
+      <tran trig="DATA_RESPONSE">
+       <action>DataResponseEvt *resEv = Q_EVT_CAST(DataResponseEvt);
 
-//POST to uart
-postUart_setNumber(CONFIG_PRE_HEAT_NUMBER_VP, respEv-&gt;pre_heat);
-postUart_setNumber(CONFIG_ROAST_NUMBER_VP, respEv-&gt;roast);</action>
-       <tran_glyph conn="253,89,3,-1,10">
-        <action box="0,-2,10,2"/>
+DataType type = resEv-&gt;type;
+Data data = resEv-&gt;data;</action>
+       <choice>
+        <guard>type == DATA_PAGE &amp;&amp; data.page_data.page == PAGE_CONFIG</guard>
+        <action>ConfigPageData page_data = data.page_data.data;
+uint16_t max_pre_heat = page_data-&gt;max_pre_heat;
+uint16_t max_roast = page_data-&gt;max_roast;
+
+hidratePageConfig(max_pre_heat, max_roast);</action>
+        <choice_glyph conn="264,91,5,-1,11">
+         <action box="1,0,10,2"/>
+        </choice_glyph>
+       </choice>
+       <tran_glyph conn="254,91,3,-1,10">
+        <action box="0,-2,17,2"/>
        </tran_glyph>
       </tran>
-      <state_glyph node="253,69,36,26">
+      <state_glyph node="254,71,36,26">
        <entry box="1,2,6,2"/>
        <exit box="1,4,6,2"/>
       </state_glyph>
@@ -901,13 +978,13 @@ if(type == SENSOR_GRAO) {
         <action>IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);</action>
         <choice target="../../../3">
          <guard>ihmEv-&gt;length == 4</guard>
-         <choice_glyph conn="108,114,4,2,-17,-6,-3">
+         <choice_glyph conn="108,114,4,2,-17,-6,-1">
           <action box="1,0,10,2"/>
          </choice_glyph>
         </choice>
         <choice target="../../../../2">
          <guard>ihmEv-&gt;length == 2</guard>
-         <choice_glyph conn="108,114,4,3,-17,58,-11,87">
+         <choice_glyph conn="108,114,4,3,-17,58,-9,88">
           <action box="1,1,10,2"/>
          </choice_glyph>
         </choice>
@@ -1065,13 +1142,15 @@ QHSM_DISPATCH((QHsm *)&amp;me-&gt;substage, subEv, me-&gt;super.prio);</action>
       </state>
       <state name="manual_controls">
        <entry>ESP_LOGD(TAG, &quot;[MANUAL_MODE][CONTROLS}[ENTRY]&quot;);
-Ihm_setupPageControls(me);</entry>
+
+Ihm_setupPageControls();
+Ihm_requestPageControls();</entry>
        <exit>ESP_LOGD(TAG, &quot;[MANUAL_MODE][CONTROLS}[EXIT]&quot;);</exit>
        <tran trig="IHM_INPUT_TOUCH">
         <action>IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);</action>
         <choice target="../../../2" cpref="../../../2/0">
          <guard>ihmEv-&gt;length == 2</guard>
-         <choice_glyph conn="102,81,5,0,70,23">
+         <choice_glyph conn="102,83,5,0,70,21">
           <action box="1,0,10,2"/>
          </choice_glyph>
         </choice>
@@ -1089,7 +1168,7 @@ if(me-&gt;state.control.resfriador == TOGGLE_OFF) {
 }
 
 QACTIVE_POST(AO_DataBroker, contEv, me);</action>
-         <choice_glyph conn="102,81,4,-1,-7,-5">
+         <choice_glyph conn="102,83,4,-1,-7,-5">
           <action box="-13,-7,13,3"/>
          </choice_glyph>
         </choice>
@@ -1111,11 +1190,11 @@ if(me-&gt;state.control.turbina == TOGGLE_OFF) {
 }
 
 QACTIVE_POST(AO_DataBroker, contEv, me);</action>
-         <choice_glyph conn="102,81,4,-1,-7,4">
+         <choice_glyph conn="102,83,4,-1,-7,4">
           <action box="5,-6,10,2"/>
          </choice_glyph>
         </choice>
-        <tran_glyph conn="88,81,3,-1,14">
+        <tran_glyph conn="88,83,3,-1,14">
          <action box="0,-2,10,2"/>
         </tran_glyph>
        </tran>
@@ -1137,7 +1216,7 @@ if(ihmEv-&gt;control == POTENCIA) {
 }
 
 QACTIVE_POST(AO_DataBroker, contEv, me);</action>
-        <tran_glyph conn="88,85,3,-1,13">
+        <tran_glyph conn="88,87,3,-1,13">
          <action box="0,-2,18,2"/>
         </tran_glyph>
        </tran>
@@ -1199,11 +1278,35 @@ if(contEv-&gt;control == POTENCIA) {
 }
 
 </action>
-        <tran_glyph conn="88,89,3,-1,13">
+        <tran_glyph conn="88,91,3,-1,13">
          <action box="0,-2,10,2"/>
         </tran_glyph>
        </tran>
-       <state_glyph node="88,70,60,24">
+       <tran trig="DATA_RESPONSE">
+        <action>DataResponseEvt *resEv = Q_EVT_CAST(DataResponseEvt);
+
+DataType type = resEv-&gt;type;
+Data data = resEv-&gt;data;</action>
+        <choice>
+         <guard>type == DATA_PAGE &amp;&amp; data.page_data.page == PAGE_CONTROLS</guard>
+         <action>ControlPageData page_data = data.page_data.data;
+uint16_t sensor_grao = page_data-&gt;sensor_grao;
+uint16_t sensor_ar = page_data-&gt;sensor_ar;
+uint16_t potencia = page_data-&gt;potencia;
+uint16_t cilindro = page_data-&gt;cilindro;
+uint16_t turbina = page_data-&gt;turbina;
+uint16_t resfriador = page_data-&gt;resfriador;
+
+hidratePageConfig(max_pre_heat, max_roast);</action>
+         <choice_glyph conn="138,86,5,-1,-8,3">
+          <action box="1,0,10,2"/>
+         </choice_glyph>
+        </choice>
+        <tran_glyph conn="148,86,1,-1,-10">
+         <action box="0,-2,10,2"/>
+        </tran_glyph>
+       </tran>
+       <state_glyph node="88,72,60,24">
         <entry box="1,2,6,2"/>
         <exit box="1,4,6,2"/>
        </state_glyph>
@@ -1476,11 +1579,11 @@ QACTIVE_POST(AO_DataBroker, reqEv, me);</entry>
       <action>IhmInputTouchEvt *ihmEv = Q_EVT_CAST(IhmInputTouchEvt);</action>
       <choice target="../../../1">
        <guard>ihmEv-&gt;length == 3</guard>
-       <choice_glyph conn="230,25,5,1,-67,2,-2">
+       <choice_glyph conn="233,27,5,1,-67,0,-5">
         <action box="1,0,10,2"/>
        </choice_glyph>
       </choice>
-      <tran_glyph conn="215,25,3,-1,15">
+      <tran_glyph conn="218,27,3,-1,15">
        <action box="0,-2,10,2"/>
       </tran_glyph>
      </tran>
@@ -1490,11 +1593,11 @@ QACTIVE_POST(AO_DataBroker, reqEv, me);</entry>
 //POST to uart
 postUart_setNumber(CONFIG_PRE_HEAT_NUMBER_VP, respEv-&gt;pre_heat);
 postUart_setNumber(CONFIG_ROAST_NUMBER_VP, respEv-&gt;roast);</action>
-      <tran_glyph conn="215,28,3,-1,20">
+      <tran_glyph conn="218,30,3,-1,20">
        <action box="0,-2,19,2"/>
       </tran_glyph>
      </tran>
-     <state_glyph node="215,13,36,26">
+     <state_glyph node="218,15,36,26">
       <entry box="1,2,6,2"/>
       <exit box="1,4,6,2"/>
      </state_glyph>
@@ -2268,9 +2371,15 @@ me-&gt;curr_recipe.values = {0};
 me-&gt;curr_recipe.count = 0;
 strcpy(me-&gt;curr_recipe.name, &quot;&quot;);</code>
    </operation>
+   <operation name="loadDataConfig" type="void" visibility="0x02" properties="0x00">
+    <code>ESP_LOGV(TAG, &quot;[DATA_BROKER][LOAD_DATA_CONFIG]&quot;);
+
+
+storage_get_global_config(&amp;me-&gt;config.max_pre_heat, &amp;me-&gt;config.max_roast);</code>
+   </operation>
    <statechart properties="0x00">
     <initial target="../1/2">
-     <initial_glyph conn="69,8,5,0,-14,8">
+     <initial_glyph conn="69,8,5,0,-12,7">
       <action box="0,-2,10,2"/>
      </initial_glyph>
     </initial>
@@ -2285,23 +2394,45 @@ ESP_LOGV(TAG, &quot;Setting new Config: %d - %d&quot;, confEv-&gt;pre_heat, conf
        <action box="0,-2,17,2"/>
       </tran_glyph>
      </tran>
-     <tran trig="REQUEST_CONFIG">
-      <action>uint16_t pre_heat = 0;
-uint16_t roast = 0;
-
-storage_get_global_config(&amp;pre_heat, &amp;roast);
-ESP_LOGE(TAG, &quot;Got global config: %d, %d&quot;, pre_heat, roast);
-
-ResponseConfigEvt *respEv = Q_NEW(ResponseConfigEvt, RESPONSE_CONFIG_SIG);
-respEv-&gt;pre_heat = pre_heat;
-respEv-&gt;roast = roast;
-QACTIVE_POST(AO_Ihm, respEv, me);</action>
+     <tran trig="REQUEST_DATA">
+      <action>RequestDataEvt *reqEv = Q_EVT_CAST(RequestDataEvt);
+DataType type = reqEv-&gt;type;
+Data data = reqEv-&gt;data;</action>
+      <choice>
+       <guard brief="PAGE_CONFIG">type == DATA_PAGE &amp;&amp; data.page_data.page == PAGE_CONFIG</guard>
+       <action>postIhm_respondData(DATA_PAGE, (Data) {
+    .page_data.type = PAGE_CONFIG,
+    .page_data.config_data.max_pre_heat = me-&gt;config.max_pre_heat;
+    .page_data.config_data.max_roast = me-&gt;config.max_roast;
+});</action>
+       <choice_glyph conn="35,156,5,-1,6,9">
+        <action box="-5,12,16,2"/>
+       </choice_glyph>
+      </choice>
+      <choice>
+       <guard brief="PAGE_CONTROLS">type == DATA_PAGE &amp;&amp; data.page_data.page == PAGE_CONTROLS</guard>
+       <action>postIhm_respondData(DATA_PAGE, (Data) {
+    .page_data.type = PAGE_CONTROLS,
+    .page_data.config_data.sensor_grao = me-&gt;curr_roast.sensor_data.grao.temp;
+    .page_data.config_data.sensor_ar = me-&gt;curr_roast.sensor_data.ar.temp;
+    .page_data.config_data.potencia = me-&gt;curr_roast.control_data.potencia;
+    .page_data.config_data.cilindro = me-&gt;curr_roast.control_data.cilindro;
+    .page_data.config_data.turbina = me-&gt;curr_roast.control_data.turbina;
+    .page_data.config_data.resfriador = me-&gt;curr_roast.control_data.resfriador;
+});</action>
+       <choice_glyph conn="35,156,5,-1,20,9">
+        <action box="12,12,17,3"/>
+       </choice_glyph>
+      </choice>
       <tran_glyph conn="12,156,3,-1,23">
        <action box="0,-2,17,2"/>
       </tran_glyph>
      </tran>
      <state name="idle">
-      <entry>ESP_LOGI(TAG, &quot;[IDLE][ENTRY]&quot;);</entry>
+      <entry>ESP_LOGI(TAG, &quot;[IDLE][ENTRY]&quot;);
+
+memset(&amp;me-&gt;config, 0, sizeof(Config));
+DataBroker_loadDataConfig();</entry>
       <exit>ESP_LOGI(TAG, &quot;[IDLE][EXIT]&quot;);</exit>
       <tran trig="REQUEST_RECIPES">
        <action>RequestRecipesEvt *recipesEvt = Q_EVT_CAST(RequestRecipesEvt);
@@ -2334,7 +2465,7 @@ if(ret != -1) {
 } else {
     ESP_LOGE(TAG, &quot;Algo deu errado ao buscar as receitas&quot;);
 }</action>
-       <tran_glyph conn="16,31,3,-1,28">
+       <tran_glyph conn="18,30,3,-1,28">
         <action box="0,-2,18,2"/>
        </tran_glyph>
       </tran>
@@ -2357,7 +2488,7 @@ if(ret != -1) {
 } else {
     ESP_LOGE(TAG, &quot;Algo deu errado ao buscar a receita %s&quot;, roast);
 }</action>
-       <tran_glyph conn="16,40,3,-1,28">
+       <tran_glyph conn="18,39,3,-1,28">
         <action box="0,-2,21,2"/>
        </tran_glyph>
       </tran>
@@ -2379,7 +2510,7 @@ QACTIVE_POST(AO_Ihm, &amp;nme2-&gt;super, me);
 me-&gt;curr_mode.mode = MODE_MANUAL;
 strcpy(me-&gt;curr_mode.roast, rme-&gt;roast);
 */</action>
-        <choice_glyph conn="106,33,4,3,-12,19">
+        <choice_glyph conn="108,32,4,3,-11,17">
          <action box="1,-11,17,2"/>
         </choice_glyph>
        </choice>
@@ -2398,11 +2529,11 @@ QACTIVE_POST(AO_Ihm, &amp;nme2-&gt;super, me);
 DataBroker_resetData(me);
 
 strcpy(me-&gt;curr_recipe.name, rme-&gt;roast);</action>
-        <choice_glyph conn="106,33,4,3,65,4">
+        <choice_glyph conn="108,32,4,3,66,2">
          <action box="0,6,16,2"/>
         </choice_glyph>
        </choice>
-       <tran_glyph conn="86,33,1,-1,20">
+       <tran_glyph conn="88,32,1,-1,20">
         <action box="0,-2,24,3"/>
        </tran_glyph>
       </tran>
@@ -2437,7 +2568,7 @@ if(ret != -1) {
 } else {
     ESP_LOGE(TAG, &quot;Algo deu errado ao buscar as torras&quot;);
 }</action>
-       <tran_glyph conn="16,49,3,-1,28">
+       <tran_glyph conn="18,48,3,-1,28">
         <action box="0,-2,18,2"/>
        </tran_glyph>
       </tran>
@@ -2460,7 +2591,7 @@ if(ret != -1) {
 } else {
     ESP_LOGE(TAG, &quot;Algo deu errado ao buscar a torra %s&quot;, roast);
 }</action>
-       <tran_glyph conn="16,54,3,-1,29">
+       <tran_glyph conn="18,53,3,-1,29">
         <action box="0,-2,19,2"/>
        </tran_glyph>
       </tran>
@@ -2472,11 +2603,11 @@ char roast[25];
 strcpy(roast, rtr-&gt;roast);
 
 storage_transform_roast(roast);</action>
-       <tran_glyph conn="16,62,3,-1,29">
+       <tran_glyph conn="18,61,3,-1,29">
         <action box="0,-2,32,2"/>
        </tran_glyph>
       </tran>
-      <state_glyph node="16,16,70,100">
+      <state_glyph node="18,15,70,100">
        <entry box="1,2,6,2"/>
        <exit box="1,4,6,2"/>
       </state_glyph>
@@ -2518,7 +2649,7 @@ QACTIVE_POST(AO_Ihm, &amp;nme2-&gt;super, me);
 me-&gt;curr_mode.mode = MODE_NONE;
 strcpy(me-&gt;curr_mode.roast, rme-&gt;roast);
 */</action>
-        <choice_glyph conn="109,68,4,1,-11,-23">
+        <choice_glyph conn="109,68,4,1,-12,-21">
          <action box="1,0,10,2"/>
         </choice_glyph>
        </choice>
@@ -3015,7 +3146,7 @@ DataBroker_updateSensorData(me, sensorEv-&gt;type, sensorEv-&gt;value, false);</
        <action>RequestModeEvt *rme = Q_EVT_CAST(RequestModeEvt);</action>
        <choice target="../../../2">
         <guard brief="EXIT_MODE">rme-&gt;mode == MODE_NONE</guard>
-        <choice_glyph conn="138,6,5,0,-63,10">
+        <choice_glyph conn="138,6,5,0,-61,9">
          <action box="-20,2,11,2"/>
         </choice_glyph>
        </choice>
@@ -3544,10 +3675,6 @@ QTimeEvt_ctorX(&amp;me-&gt;recipeTimerEvt, &amp;me-&gt;super, DATA_RECIPE_TIMEOU
   </class>
   <class name="PerifStartEvt" superclass="qpc::QEvt"/>
   <class name="PerifStopEvt" superclass="qpc::QEvt"/>
-  <class name="ResponseSummaryEvt" superclass="qpc::QEvt">
-   <attribute name="name[9]" type="char" visibility="0x00" properties="0x00"/>
-  </class>
-  <class name="RequestSummaryEvt" superclass="qpc::QEvt"/>
   <class name="ControlUpdateEvt" superclass="qpc::QEvt">
    <attribute name="control" type="ControlType" visibility="0x00" properties="0x00"/>
    <attribute name="value" type="int" visibility="0x00" properties="0x00"/>
@@ -3561,44 +3688,8 @@ QTimeEvt_ctorX(&amp;me-&gt;recipeTimerEvt, &amp;me-&gt;super, DATA_RECIPE_TIMEOU
    <attribute name="value" type="int" visibility="0x00" properties="0x00"/>
    <attribute name="delta" type="int" visibility="0x00" properties="0x00"/>
   </class>
-  <class name="RequestRoastsEvt" superclass="qpc::QEvt">
-   <attribute name="pageNum" type="uint8_t" visibility="0x00" properties="0x00"/>
-  </class>
-  <class name="ResponseRoastsEvt" superclass="qpc::QEvt">
-   <attribute name="pageNum" type="uint8_t" visibility="0x00" properties="0x00"/>
-   <attribute name="roast1[25]" type="char" visibility="0x00" properties="0x00"/>
-   <attribute name="roast2[25]" type="char" visibility="0x00" properties="0x00"/>
-   <attribute name="roast3[25]" type="char" visibility="0x00" properties="0x00"/>
-   <attribute name="prevPage" type="bool" visibility="0x00" properties="0x00"/>
-   <attribute name="nextPage" type="bool" visibility="0x00" properties="0x00"/>
-  </class>
-  <class name="RequestRoastEvt" superclass="qpc::QEvt">
-   <attribute name="roast[25]" type="char" visibility="0x00" properties="0x00"/>
-  </class>
-  <class name="ResponseRoastEvt" superclass="qpc::QEvt">
-   <attribute name="roast[25]" type="char" visibility="0x00" properties="0x00"/>
-   <attribute name="sensorData" type="SensorData *" visibility="0x00" properties="0x00"/>
-  </class>
   <class name="RequestTransformRoastEvt" superclass="qpc::QEvt">
    <attribute name="roast[25]" type="char" visibility="0x00" properties="0x00"/>
-  </class>
-  <class name="RequestRecipesEvt" superclass="qpc::QEvt">
-   <attribute name="pageNum" type="uint8_t" visibility="0x00" properties="0x00"/>
-  </class>
-  <class name="ResponseRecipesEvt" superclass="qpc::QEvt">
-   <attribute name="pageNum" type="uint8_t" visibility="0x00" properties="0x00"/>
-   <attribute name="roast1[25]" type="char" visibility="0x00" properties="0x00"/>
-   <attribute name="roast2[25]" type="char" visibility="0x00" properties="0x00"/>
-   <attribute name="roast3[25]" type="char" visibility="0x00" properties="0x00"/>
-   <attribute name="prevPage" type="bool" visibility="0x00" properties="0x00"/>
-   <attribute name="nextPage" type="bool" visibility="0x00" properties="0x00"/>
-  </class>
-  <class name="RequestRecipeEvt" superclass="qpc::QEvt">
-   <attribute name="roast[25]" type="char" visibility="0x00" properties="0x00"/>
-  </class>
-  <class name="ResponseRecipeEvt" superclass="qpc::QEvt">
-   <attribute name="roast[25]" type="char" visibility="0x00" properties="0x00"/>
-   <attribute name="sensorData" type="SensorData *" visibility="0x00" properties="0x00"/>
   </class>
   <class name="NotifyModeEvt" superclass="qpc::QEvt">
    <attribute name="mode" type="ModeType" visibility="0x00" properties="0x00"/>
@@ -3620,11 +3711,6 @@ QTimeEvt_ctorX(&amp;me-&gt;recipeTimerEvt, &amp;me-&gt;super, DATA_RECIPE_TIMEOU
    <attribute name="pre_heat" type="uint16_t" visibility="0x00" properties="0x00"/>
    <attribute name="roast" type="uint16_t" visibility="0x00" properties="0x00"/>
   </class>
-  <class name="RequestConfigEvt" superclass="qpc::QEvt"/>
-  <class name="ResponseConfigEvt" superclass="qpc::QEvt">
-   <attribute name="pre_heat" type="uint32_t" visibility="0x00" properties="0x00"/>
-   <attribute name="roast" type="uint32_t" visibility="0x00" properties="0x00"/>
-  </class>
   <class name="UartOutputNumberEvt" superclass="qpc::QEvt">
    <attribute name="vp" type="unsigned short int" visibility="0x00" properties="0x00"/>
    <attribute name="value" type="unsigned short" visibility="0x00" properties="0x00"/>
@@ -3635,6 +3721,13 @@ QTimeEvt_ctorX(&amp;me-&gt;recipeTimerEvt, &amp;me-&gt;super, DATA_RECIPE_TIMEOU
    <attribute name="temp_data" type="TempData *" visibility="0x00" properties="0x00"/>
    <attribute name="max" type="int" visibility="0x00" properties="0x00"/>
    <attribute name="min" type="int" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="DataRequestEvt" superclass="qpc::QEvt">
+   <attribute name="page" type="PageType" visibility="0x00" properties="0x00"/>
+  </class>
+  <class name="DataResponseEvt" superclass="qpc::QEvt">
+   <attribute name="type" type="DataType" visibility="0x00" properties="0x00"/>
+   <attribute name="data" type="Data" visibility="0x00" properties="0x00"/>
   </class>
  </package>
  <package name="Components" stereotype="0x02">
@@ -3956,6 +4049,65 @@ UartOutputNumberEvt *numberEv = Q_NEW(UartOutputNumberEvt, UART_OUTPUT_NUMBER_SI
 numberEv-&gt;vp = vp;
 numberEv-&gt;value = value;
 QACTIVE_POST(AO_Uart, &amp;numberEv-&gt;super, me);
+
+</code>
+  </operation>
+  <operation name="postData_requestData" type="void" visibility="0x01" properties="0x00">
+   <parameter name="type" type="DataType"/>
+   <parameter name="data" type="Data"/>
+   <code>ESP_LOGV(TAG, &quot;[IHM_DATA_REQUEST_DATA]&quot;);
+
+DataRequestEvt *reqEv = Q_NEW(DataRequestEvt, DATA_REQUEST_SIG);
+reqEv-&gt;type = type;
+reqEv-&gt;data = data;
+QACTIVE_POST(AO_DataBroker, reqEv, me);</code>
+  </operation>
+  <operation name="postIhm_respondData" type="void" visibility="0x01" properties="0x00">
+   <parameter name="type" type="DataType"/>
+   <parameter name="data" type="Data"/>
+   <code>ESP_LOGV(TAG, &quot;[DATA_IHM_RESPOND_DATA]&quot;);
+
+DataResponseEvt *resEv = Q_NEW(DataResponseEvt, DATA_RESPONSE_SIG);
+resEv-&gt;type = type;
+resEv-&gt;data = data;
+QACTIVE_POST(AO_Ihm, resEv, me);</code>
+  </operation>
+  <operation name="postUart_setNumberAsString" type="void" visibility="0x01" properties="0x01">
+   <parameter name="vp" type="unsigned short int"/>
+   <parameter name="text" type="char *"/>
+   <parameter name="ext" type="char *"/>
+   <parameter name="reset" type="bool"/>
+   <parameter name="reset_len" type="size_t"/>
+   <code>ESP_LOGV(TAG, &quot;[IHM_UART_SET_NUMBER_AS_STRING]&quot;);
+
+if(reset) {
+    char resetStr[100] = {0};
+    int i;
+
+    for(i=0; i&lt;reset_len; i++)
+        strcpy(&amp;resetStr[i], &quot; &quot;);
+
+    i++;
+    strcpy(&amp;resetStr[i], &quot;\0&quot;);
+    //ESP_LOGE(TAG, &quot;Reseting to: %s - len: %d&quot;, resetStr, strlen(resetStr));
+
+    UartOutputTextEvt *resetEv = Q_NEW(UartOutputTextEvt, UART_OUTPUT_TEXT_SIG);
+    resetEv-&gt;vp = vp;
+    resetEv-&gt;text = resetStr;
+    QACTIVE_POST(AO_Uart, &amp;resetEv-&gt;super, me);
+}
+
+if(strlen(text) &gt; reset_len) {
+    strcpy(&amp;text[reset_len-1], &quot;\0&quot;);
+}
+
+char str[6] = {0};
+sprintf(str, &quot;%d%s&quot;, value, ext);
+
+UartOutputTextEvt *textEv = Q_NEW(UartOutputTextEvt, UART_OUTPUT_TEXT_SIG);
+textEv-&gt;vp = vp;
+textEv-&gt;text = str;
+QACTIVE_POST(AO_Uart, &amp;textEv-&gt;super, me);
 
 </code>
   </operation>
@@ -4799,6 +4951,8 @@ typedef enum PageTypeTag {
     PAGE_RECIPE,
     PAGE_ROASTS,
     PAGE_ROAST,
+    PAGE_CONTROLS,
+    PAGE_CONFIG
 } PageType;
 
 typedef enum ModeTypeTag {
@@ -4880,10 +5034,16 @@ typedef struct RecipeResponseTag {
 } RecipeResponse;
 
 typedef struct ControlDataTag {
-    int potencia;
-    int cilindro;
-    int turbina;
+    uint16_t potencia;
+    uint16_t cilindro;
+    uint16_t turbina;
+    uint16_t resfriador;
 } ControlData;
+
+typedef struct CommandDataTag {
+    ControlData control_data;
+    time_t timestamp;
+} CommandData;
 
 typedef struct RoastDataTag {
     time_t time_start;
@@ -4903,17 +5063,9 @@ typedef struct RecipeDataTag {
 } RecipeData;
 
 typedef struct ConfigTag {
-    int max_pre_heat;
-    int max_roast;
+    uint16_t max_pre_heat;
+    uint16_t max_roast;
 } Config;
-
-typedef enum ControlToggleTag {
-    TOGGLE_OFF,
-    TOGGLE_SEVENTY,
-    TOGGLE_EIGHTY,
-    TOGGLE_NINETY,
-    TOGGLE_MAX,
-} ControlToggle;
 
 typedef struct ControlStateTag {
     int potencia;
@@ -4935,6 +5087,35 @@ typedef struct RoastPageDataTag {
     char roast[25];
 } RoastPageData;
 
+typedef struct ControlPageDataTag {
+    int sensor_grao;
+    int sensor_ar;
+    int potencia;
+    int cilindro;
+    int turbina;
+    int resfriador;
+}
+
+typedef struct ConfigPageDataTag {
+    uint16_t max_pre_heat;
+    uint16_t max_roast;
+} ConfigPageData;
+
+typedef enum DataTypeTag {
+    DATA_PAGE,
+} DataType;
+
+typedef struct PageDataTag {
+    PageType page;
+    union {
+        ControlPageData control_data;
+        ConfigPageData config_data;
+    } data;
+} PageData;
+
+typedef union DataTag {
+    PageData page_data;
+} Data;
 
 typedef struct IhmStateTag {
     ControlState control;

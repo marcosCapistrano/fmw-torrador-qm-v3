@@ -113,6 +113,8 @@ typedef enum PageTypeTag {
     PAGE_RECIPE,
     PAGE_ROASTS,
     PAGE_ROAST,
+    PAGE_CONTROLS,
+    PAGE_CONFIG
 } PageType;
 
 typedef enum ModeTypeTag {
@@ -194,10 +196,16 @@ typedef struct RecipeResponseTag {
 } RecipeResponse;
 
 typedef struct ControlDataTag {
-    int potencia;
-    int cilindro;
-    int turbina;
+    uint16_t potencia;
+    uint16_t cilindro;
+    uint16_t turbina;
+    uint16_t resfriador;
 } ControlData;
+
+typedef struct CommandDataTag {
+    ControlData control_data;
+    time_t timestamp;
+} CommandData;
 
 typedef struct RoastDataTag {
     time_t time_start;
@@ -217,17 +225,9 @@ typedef struct RecipeDataTag {
 } RecipeData;
 
 typedef struct ConfigTag {
-    int max_pre_heat;
-    int max_roast;
+    uint16_t max_pre_heat;
+    uint16_t max_roast;
 } Config;
-
-typedef enum ControlToggleTag {
-    TOGGLE_OFF,
-    TOGGLE_SEVENTY,
-    TOGGLE_EIGHTY,
-    TOGGLE_NINETY,
-    TOGGLE_MAX,
-} ControlToggle;
 
 typedef struct ControlStateTag {
     int potencia;
@@ -249,6 +249,35 @@ typedef struct RoastPageDataTag {
     char roast[25];
 } RoastPageData;
 
+typedef struct ControlPageDataTag {
+    int sensor_grao;
+    int sensor_ar;
+    int potencia;
+    int cilindro;
+    int turbina;
+    int resfriador;
+}
+
+typedef struct ConfigPageDataTag {
+    uint16_t max_pre_heat;
+    uint16_t max_roast;
+} ConfigPageData;
+
+typedef enum DataTypeTag {
+    DATA_PAGE,
+} DataType;
+
+typedef struct PageDataTag {
+    PageType page;
+    union {
+        ControlPageData control_data;
+        ConfigPageData config_data;
+    } data;
+} PageData;
+
+typedef union DataTag {
+    PageData page_data;
+} Data;
 
 typedef struct IhmStateTag {
     ControlState control;
@@ -392,21 +421,6 @@ typedef struct {
     QEvt super;
 } PerifStopEvt;
 
-/*${Events::ResponseSummaryEvt} ............................................*/
-typedef struct {
-/* protected: */
-    QEvt super;
-
-/* public: */
-    char name[9];
-} ResponseSummaryEvt;
-
-/*${Events::RequestSummaryEvt} .............................................*/
-typedef struct {
-/* protected: */
-    QEvt super;
-} RequestSummaryEvt;
-
 /*${Events::ControlUpdateEvt} ..............................................*/
 typedef struct {
 /* protected: */
@@ -438,48 +452,6 @@ typedef struct {
     int delta;
 } SensorDataEvt;
 
-/*${Events::RequestRoastsEvt} ..............................................*/
-typedef struct {
-/* protected: */
-    QEvt super;
-
-/* public: */
-    uint8_t pageNum;
-} RequestRoastsEvt;
-
-/*${Events::ResponseRoastsEvt} .............................................*/
-typedef struct {
-/* protected: */
-    QEvt super;
-
-/* public: */
-    uint8_t pageNum;
-    char roast1[25];
-    char roast2[25];
-    char roast3[25];
-    bool prevPage;
-    bool nextPage;
-} ResponseRoastsEvt;
-
-/*${Events::RequestRoastEvt} ...............................................*/
-typedef struct {
-/* protected: */
-    QEvt super;
-
-/* public: */
-    char roast[25];
-} RequestRoastEvt;
-
-/*${Events::ResponseRoastEvt} ..............................................*/
-typedef struct {
-/* protected: */
-    QEvt super;
-
-/* public: */
-    char roast[25];
-    SensorData * sensorData;
-} ResponseRoastEvt;
-
 /*${Events::RequestTransformRoastEvt} ......................................*/
 typedef struct {
 /* protected: */
@@ -488,48 +460,6 @@ typedef struct {
 /* public: */
     char roast[25];
 } RequestTransformRoastEvt;
-
-/*${Events::RequestRecipesEvt} .............................................*/
-typedef struct {
-/* protected: */
-    QEvt super;
-
-/* public: */
-    uint8_t pageNum;
-} RequestRecipesEvt;
-
-/*${Events::ResponseRecipesEvt} ............................................*/
-typedef struct {
-/* protected: */
-    QEvt super;
-
-/* public: */
-    uint8_t pageNum;
-    char roast1[25];
-    char roast2[25];
-    char roast3[25];
-    bool prevPage;
-    bool nextPage;
-} ResponseRecipesEvt;
-
-/*${Events::RequestRecipeEvt} ..............................................*/
-typedef struct {
-/* protected: */
-    QEvt super;
-
-/* public: */
-    char roast[25];
-} RequestRecipeEvt;
-
-/*${Events::ResponseRecipeEvt} .............................................*/
-typedef struct {
-/* protected: */
-    QEvt super;
-
-/* public: */
-    char roast[25];
-    SensorData * sensorData;
-} ResponseRecipeEvt;
 
 /*${Events::NotifyModeEvt} .................................................*/
 typedef struct {
@@ -586,22 +516,6 @@ typedef struct {
     uint16_t roast;
 } ConfigUpdateEvt;
 
-/*${Events::RequestConfigEvt} ..............................................*/
-typedef struct {
-/* protected: */
-    QEvt super;
-} RequestConfigEvt;
-
-/*${Events::ResponseConfigEvt} .............................................*/
-typedef struct {
-/* protected: */
-    QEvt super;
-
-/* public: */
-    uint32_t pre_heat;
-    uint32_t roast;
-} ResponseConfigEvt;
-
 /*${Events::UartOutputNumberEvt} ...........................................*/
 typedef struct {
 /* protected: */
@@ -629,6 +543,25 @@ typedef struct {
     int max;
     int min;
 } ChartDataEvt;
+
+/*${Events::DataRequestEvt} ................................................*/
+typedef struct {
+/* protected: */
+    QEvt super;
+
+/* public: */
+    PageType page;
+} DataRequestEvt;
+
+/*${Events::DataResponseEvt} ...............................................*/
+typedef struct {
+/* protected: */
+    QEvt super;
+
+/* public: */
+    DataType type;
+    Data data;
+} DataResponseEvt;
 /*$enddecl${Events} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
 
 /*$declare${AOs::Ihm_ctor} vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv*/
@@ -694,6 +627,24 @@ void postUart_setIcon(
 void postUart_setNumber(
     unsigned short int vp,
     unsigned short value);
+
+/*${Common::postData_requestData} ..........................................*/
+void postData_requestData(
+    DataType type,
+    Data data);
+
+/*${Common::postIhm_respondData} ...........................................*/
+void postIhm_respondData(
+    DataType type,
+    Data data);
+
+/*${Common::postUart_setNumberAsString} ....................................*/
+void postUart_setNumberAsString(
+    unsigned short int vp,
+    char * text,
+    char * ext,
+    bool reset,
+    size_t reset_len);
 /*$enddecl${Common} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
 
 #endif

@@ -65,6 +65,7 @@ static void DataBroker_resetData(DataBroker * const me);
 static void DataBroker_resetConfig(DataBroker * const me);
 static void DataBroker_resetRoast(DataBroker * const me);
 static void DataBroker_resetRecipe(DataBroker * const me);
+static void DataBroker_loadDataConfig(DataBroker * const me);
 
 /* protected: */
 static QState DataBroker_initial(DataBroker * const me, void const * const par);
@@ -302,6 +303,14 @@ static void DataBroker_resetRecipe(DataBroker * const me) {
     strcpy(me->curr_recipe.name, "");
 }
 
+/*${AOs::DataBroker::loadDataConfig} .......................................*/
+static void DataBroker_loadDataConfig(DataBroker * const me) {
+    ESP_LOGV(TAG, "[DATA_BROKER][LOAD_DATA_CONFIG]");
+
+
+    storage_get_global_config(&me->config.max_pre_heat, &me->config.max_roast);
+}
+
 /*${AOs::DataBroker::SM} ...................................................*/
 static QState DataBroker_initial(DataBroker * const me, void const * const par) {
     /*${AOs::DataBroker::SM::initial} */
@@ -322,19 +331,36 @@ static QState DataBroker_state1(DataBroker * const me, QEvt const * const e) {
             status_ = Q_HANDLED();
             break;
         }
-        /*${AOs::DataBroker::SM::state1::REQUEST_CONFIG} */
-        case REQUEST_CONFIG_SIG: {
-            uint16_t pre_heat = 0;
-            uint16_t roast = 0;
-
-            storage_get_global_config(&pre_heat, &roast);
-            ESP_LOGE(TAG, "Got global config: %d, %d", pre_heat, roast);
-
-            ResponseConfigEvt *respEv = Q_NEW(ResponseConfigEvt, RESPONSE_CONFIG_SIG);
-            respEv->pre_heat = pre_heat;
-            respEv->roast = roast;
-            QACTIVE_POST(AO_Ihm, respEv, me);
-            status_ = Q_HANDLED();
+        /*${AOs::DataBroker::SM::state1::REQUEST_DATA} */
+        case REQUEST_DATA_SIG: {
+            RequestDataEvt *reqEv = Q_EVT_CAST(RequestDataEvt);
+            DataType type = reqEv->type;
+            Data data = reqEv->data;
+            /*${AOs::DataBroker::SM::state1::REQUEST_DATA::[PAGE_CONFIG]} */
+            if (type == DATA_PAGE && data.page_data.page == PAGE_CONFIG) {
+                postIhm_respondData(DATA_PAGE, (Data) {
+                    .page_data.type = PAGE_CONFIG,
+                    .page_data.config_data.max_pre_heat = me->config.max_pre_heat;
+                    .page_data.config_data.max_roast = me->config.max_roast;
+                });
+                status_ = Q_HANDLED();
+            }
+            /*${AOs::DataBroker::SM::state1::REQUEST_DATA::[PAGE_CONTROLS]} */
+            else if (type == DATA_PAGE && data.page_data.page == PAGE_CONTROLS) {
+                postIhm_respondData(DATA_PAGE, (Data) {
+                    .page_data.type = PAGE_CONTROLS,
+                    .page_data.config_data.sensor_grao = me->curr_roast.sensor_data.grao.temp;
+                    .page_data.config_data.sensor_ar = me->curr_roast.sensor_data.ar.temp;
+                    .page_data.config_data.potencia = me->curr_roast.control_data.potencia;
+                    .page_data.config_data.cilindro = me->curr_roast.control_data.cilindro;
+                    .page_data.config_data.turbina = me->curr_roast.control_data.turbina;
+                    .page_data.config_data.resfriador = me->curr_roast.control_data.resfriador;
+                });
+                status_ = Q_HANDLED();
+            }
+            else {
+                status_ = Q_UNHANDLED();
+            }
             break;
         }
         default: {
@@ -352,6 +378,9 @@ static QState DataBroker_idle(DataBroker * const me, QEvt const * const e) {
         /*${AOs::DataBroker::SM::state1::idle} */
         case Q_ENTRY_SIG: {
             ESP_LOGI(TAG, "[IDLE][ENTRY]");
+
+            memset(&me->config, 0, sizeof(Config));
+            DataBroker_loadDataConfig();
             status_ = Q_HANDLED();
             break;
         }

@@ -118,4 +118,72 @@ void postUart_setNumber(
 
 
 }
+
+/*${Common::postData_requestData} ..........................................*/
+void postData_requestData(
+    DataType type,
+    Data data)
+{
+    ESP_LOGV(TAG, "[IHM_DATA_REQUEST_DATA]");
+
+    DataRequestEvt *reqEv = Q_NEW(DataRequestEvt, DATA_REQUEST_SIG);
+    reqEv->type = type;
+    reqEv->data = data;
+    QACTIVE_POST(AO_DataBroker, reqEv, me);
+}
+
+/*${Common::postIhm_respondData} ...........................................*/
+void postIhm_respondData(
+    DataType type,
+    Data data)
+{
+    ESP_LOGV(TAG, "[DATA_IHM_RESPOND_DATA]");
+
+    DataResponseEvt *resEv = Q_NEW(DataResponseEvt, DATA_RESPONSE_SIG);
+    resEv->type = type;
+    resEv->data = data;
+    QACTIVE_POST(AO_Ihm, resEv, me);
+}
+
+/*${Common::postUart_setNumberAsString} ....................................*/
+void postUart_setNumberAsString(
+    unsigned short int vp,
+    char * text,
+    char * ext,
+    bool reset,
+    size_t reset_len)
+{
+    ESP_LOGV(TAG, "[IHM_UART_SET_NUMBER_AS_STRING]");
+
+    if(reset) {
+        char resetStr[100] = {0};
+        int i;
+
+        for(i=0; i<reset_len; i++)
+            strcpy(&resetStr[i], " ");
+
+        i++;
+        strcpy(&resetStr[i], "\0");
+        //ESP_LOGE(TAG, "Reseting to: %s - len: %d", resetStr, strlen(resetStr));
+
+        UartOutputTextEvt *resetEv = Q_NEW(UartOutputTextEvt, UART_OUTPUT_TEXT_SIG);
+        resetEv->vp = vp;
+        resetEv->text = resetStr;
+        QACTIVE_POST(AO_Uart, &resetEv->super, me);
+    }
+
+    if(strlen(text) > reset_len) {
+        strcpy(&text[reset_len-1], "\0");
+    }
+
+    char str[6] = {0};
+    sprintf(str, "%d%s", value, ext);
+
+    UartOutputTextEvt *textEv = Q_NEW(UartOutputTextEvt, UART_OUTPUT_TEXT_SIG);
+    textEv->vp = vp;
+    textEv->text = str;
+    QACTIVE_POST(AO_Uart, &textEv->super, me);
+
+
+}
 /*$enddef${Common} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/

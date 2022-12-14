@@ -173,9 +173,8 @@ typedef struct {
     IhmStage stage;
     IhmSubstage substage;
     RoastsPageData roasts_page;
-
-/* public: */
     RoastPageData roast_page;
+    ControlPageData control_page;
 
 /* private state histories */
     QStateHandler hist_manual_page;
@@ -192,8 +191,6 @@ static void Ihm_setupPageManualMode(void);
 static void Ihm_setupPageMainMenu(void);
 static void Ihm_setupPageManualControls(void);
 static void Ihm_setupPageSummary(void);
-static void Ihm_setupPageConfig(void);
-static void Ihm_setupPageControls(Ihm * const me);
 static void Ihm_requestExitMode(void);
 static void Ihm_setupPageRoasts(Ihm * const me,
     bool recipes);
@@ -215,6 +212,27 @@ static void Ihm_postTemperatures(
     int minTemp,
     int originY,
     bool isDelta);
+static void Ihm_setupPageControls(void);
+static void Ihm_requestPageControls(
+    int max_pre_heat,
+    int max_roast);
+static void Ihm_hidratePageControls(Ihm * const me,
+    uint16_t sensor_grao,
+    uint16_t sensor_ar,
+    uint16_t potencia,
+    uint16_t cilindro,
+    uint16_t turbina,
+    uint16_t resfriador);
+static void Ihm_setupPageConfig(void);
+static void Ihm_requestPageConfig(
+    int max_pre_heat,
+    int max_roast);
+static void Ihm_hidratePageConfig(Ihm * const me,
+    uint16_t max_pre_heat,
+    uint16_t max_roast);
+static void Ihm_updateComponentControl(
+    ControlType type,
+    uint16_t value);
 
 /* protected: */
 static QState Ihm_initial(Ihm * const me, void const * const par);
@@ -824,73 +842,6 @@ static void Ihm_setupPageSummary(void) {
     postUart_setIcon(NAVBAR_ICON_GEAR_VP, 0);
 }
 
-/*${AOs::Ihm::setupPageConfig} .............................................*/
-static void Ihm_setupPageConfig(void) {
-    ESP_LOGD(TAG, "[IHM_SETUP_PAGE_CONFIG]");
-
-    postUart_setPage(CONFIG_PICID);
-    postUart_setString(NAVBAR_TEXT_VP, "CONFIGURACOES", true, NAVBAR_TEXT_LEN);
-    postUart_setIcon(NAVBAR_ICON_HOME_VP, 0);
-    postUart_setIcon(NAVBAR_ICON_GEAR_VP, 0);
-
-    postUart_setNumber(CONFIG_PRE_HEAT_NUMBER_VP, 0);
-    postUart_setNumber(CONFIG_ROAST_NUMBER_VP, 0);
-}
-
-/*${AOs::Ihm::setupPageControls} ...........................................*/
-static void Ihm_setupPageControls(Ihm * const me) {
-    ESP_LOGD(TAG, "[IHM_SETUP_PAGE_CONTROLS]");
-
-    postUart_setPage(CONTROLS_PICID);
-    postUart_setString(NAVBAR_TEXT_VP, "CONTROLES", true, NAVBAR_TEXT_LEN);
-
-    postUart_setString(SENSOR_AR_TEXT_VP, "0\0", true, SENSOR_AR_TEXT_LEN);
-    postUart_setString(DELTA_AR_TEXT_VP, "0\0", true, DELTA_AR_TEXT_LEN);
-
-    postUart_setString(SENSOR_GRAO_TEXT_VP, "0\0", true, SENSOR_GRAO_TEXT_LEN);
-    postUart_setString(DELTA_GRAO_TEXT_VP, "0\0", true, DELTA_GRAO_TEXT_LEN);
-
-    uint8_t potValue = ceil(me->state.control.potencia / 5) * 5;
-    uint8_t potIcon = ceil(potValue / 5);
-    char potStr[100] = {0};
-    strcpy(potStr, itoa(potValue, potStr, 10));
-
-    postUart_setString(CONTROL_POTENCIA_TEXT_VP, potStr, true, CONTROL_POTENCIA_TEXT_LEN);
-    postUart_setIcon(CONTROL_POTENCIA_ICON_VP, potIcon);
-
-    uint8_t cilValue = ceil(me->state.control.cilindro / 5) * 5;
-    uint8_t cilIcon = ceil(cilValue / 5);
-    char cilStr[100] = {0};
-    strcpy(cilStr, itoa(cilValue, cilStr, 10));
-
-    postUart_setString(CONTROL_CILINDRO_TEXT_VP, cilStr, true, CONTROL_CILINDRO_TEXT_LEN);
-    postUart_setIcon(CONTROL_CILINDRO_ICON_VP, cilIcon);
-
-    int icon = 0;
-        if(me->state.control.turbina == TOGGLE_OFF) {
-            icon = 0;
-        } else if(me->state.control.turbina == TOGGLE_SEVENTY) {
-            icon = 1;
-        } else if(me->state.control.turbina == TOGGLE_EIGHTY) {
-            icon = 2;
-        } else if(me->state.control.turbina == TOGGLE_NINETY) {
-            icon = 3;
-        } else if(me->state.control.turbina == TOGGLE_MAX) {
-            icon = 4;
-        }
-
-    postUart_setIcon(CONTROL_TURBINA_ICON_VP, icon);
-
-    int icon2 = 0;
-
-        if(me->state.control.resfriador == TOGGLE_OFF) {
-            icon2 = 0;
-        } else {
-            icon2 = 4;
-        }
-        postUart_setIcon(CONTROL_RESFRIADOR_ICON_VP, icon2);
-}
-
 /*${AOs::Ihm::requestExitMode} .............................................*/
 static void Ihm_requestExitMode(void) {
     RequestModeEvt *ram = Q_NEW(RequestModeEvt, REQUEST_MODE_SIG);
@@ -1039,6 +990,158 @@ static void Ihm_postTemperatures(
     QACTIVE_POST(AO_Uart, &chartEv->super, me);
 }
 
+/*${AOs::Ihm::setupPageControls} ...........................................*/
+static void Ihm_setupPageControls(void) {
+    ESP_LOGD(TAG, "[IHM_SETUP_PAGE_CONTROLS]");
+
+    postUart_setPage(CONTROLS_PICID);
+    postUart_setString(NAVBAR_TEXT_VP, "CONTROLES", true, NAVBAR_TEXT_LEN);
+
+    postUart_setString(SENSOR_AR_TEXT_VP, "0\0", true, SENSOR_AR_TEXT_LEN);
+    postUart_setString(DELTA_AR_TEXT_VP, "0\0", true, DELTA_AR_TEXT_LEN);
+
+    postUart_setString(SENSOR_GRAO_TEXT_VP, "0\0", true, SENSOR_GRAO_TEXT_LEN);
+    postUart_setString(DELTA_GRAO_TEXT_VP, "0\0", true, DELTA_GRAO_TEXT_LEN);
+
+    Ihm_updateComponentControl(POTENCIA, 0);
+    Ihm_updateComponentControl(CILINDRO, 0);
+    Ihm_updateComponentControl(TURBINA, 0);
+    Ihm_updateComponentControl(RESFRIADOR, 0);
+}
+
+/*${AOs::Ihm::requestPageControls} .........................................*/
+static void Ihm_requestPageControls(
+    int max_pre_heat,
+    int max_roast)
+{
+    ESP_LOGV(TAG, "[IHM_REQUEST_PAGE_CONTROLS]");
+
+    postData_requestData(
+        DATA_PAGE,
+        (Data){
+            .page_data.type = PAGE_CONTROLS
+        )
+    );
+}
+
+/*${AOs::Ihm::hidratePageControls} .........................................*/
+static void Ihm_hidratePageControls(Ihm * const me,
+    uint16_t sensor_grao,
+    uint16_t sensor_ar,
+    uint16_t potencia,
+    uint16_t cilindro,
+    uint16_t turbina,
+    uint16_t resfriador)
+{
+    ESP_LOGV(TAG, "[HIDRATE_PAGE_CONTROLS]");
+
+    postUart_setNumberAsString(SENSOR_GRAO_TEXT_VP, sensor_grao, " C", true, SENSOR_GRAO_TEXT_LEN);
+    postUart_setNumberAsString(SENSOR_AR_TEXT_VP, sensor_ar, " C", true, SENSOR_AR_TEXT_LEN);
+
+    Ihm_updateComponentControl(POTENCIA, potencia);
+    Ihm_updateComponentControl(CILINDRO, cilindro);
+    Ihm_updateComponentControl(TURBINA, turbina);
+    Ihm_updateComponentControl(RESFRIADOR, resfriador);
+}
+
+/*${AOs::Ihm::setupPageConfig} .............................................*/
+static void Ihm_setupPageConfig(void) {
+    ESP_LOGD(TAG, "[IHM_SETUP_PAGE_CONFIG]");
+
+    postUart_setPage(CONFIG_PICID);
+    postUart_setString(NAVBAR_TEXT_VP, "CONFIGURACOES", true, NAVBAR_TEXT_LEN);
+    postUart_setIcon(NAVBAR_ICON_HOME_VP, 0);
+    postUart_setIcon(NAVBAR_ICON_GEAR_VP, 0);
+
+    postUart_setNumber(CONFIG_PRE_HEAT_NUMBER_VP, 0);
+    postUart_setNumber(CONFIG_ROAST_NUMBER_VP, 0);
+}
+
+/*${AOs::Ihm::requestPageConfig} ...........................................*/
+static void Ihm_requestPageConfig(
+    int max_pre_heat,
+    int max_roast)
+{
+    ESP_LOGV(TAG, "[IHM_REQUEST_PAGE_CONFIG]");
+
+    postData_requestData(
+        DATA_PAGE,
+        (Data){
+            .page_data.type = PAGE_CONFIG
+        )
+    );
+}
+
+/*${AOs::Ihm::hidratePageConfig} ...........................................*/
+static void Ihm_hidratePageConfig(Ihm * const me,
+    uint16_t max_pre_heat,
+    uint16_t max_roast)
+{
+    ESP_LOGD(TAG, "[IHM_HIDRATE_PAGE_CONFIG]");
+
+    postUart_setNumber(CONFIG_PRE_HEAT_NUMBER_VP, max_pre_heat);
+    postUart_setNumber(CONFIG_ROAST_NUMBER_VP, max_roast);
+}
+
+/*${AOs::Ihm::updateComponentControl} ......................................*/
+static void Ihm_updateComponentControl(
+    ControlType type,
+    uint16_t value)
+{
+    ESP_LOGD(TAG, "[UPDATE_COMPONENT_CONTROL]");
+
+    uint16_t new_value = ceil(value / 5) * 5;
+    uint8_t icon = ceil(new_value / 5);
+
+    char str[10];
+    memset(str, "\0", sizeof(str));
+    itoa(new_value, str, 10);
+
+    switch(type) {
+        case POTENCIA:
+            postUart_setString(CONTROL_POTENCIA_TEXT_VP, str, true, CONTROL_POTENCIA_TEXT_LEN);
+            postUart_setIcon(CONTROL_POTENCIA_ICON_VP, icon);
+        break;
+
+        case CILINDRO:
+            postUart_setString(CONTROL_CILINDRO_TEXT_VP, str, true, CONTROL_CILINDRO_TEXT_LEN);
+            postUart_setIcon(CONTROL_CILINDRO_ICON_VP, icon);
+        break;
+
+        case TURBINA:
+            icon = 0;
+            if(value == 0) {
+                icon = 0;
+            } else if(value == 70) {
+                icon = 1;
+            } else if(value == 80) {
+                icon = 2;
+            } else if(value == 90) {
+                icon = 3;
+            } else if(value == 100) {
+                icon = 4;
+            } else {
+                ESP_LOGE(TAG, "Turbina recebendo valor outro além dos possiveis: %d", value);
+            }
+
+            postUart_setIcon(CONTROL_TURBINA_ICON_VP, icon);
+        break;
+
+        case RESFRIADOR:
+            icon = 0;
+            if(value == 0) {
+                icon = 0;
+            } else if(value == 100) {
+                icon = 4;
+            } else {
+                ESP_LOGE(TAG, "Resfriador recebendo valor outro além dos possiveis: %d", value);
+            }
+
+            postUart_setIcon(CONTROL_RESFRIADOR_ICON_VP, icon);
+        break;
+    }
+}
+
 /*${AOs::Ihm::SM} ..........................................................*/
 static QState Ihm_initial(Ihm * const me, void const * const par) {
     /*${AOs::Ihm::SM::initial} */
@@ -1161,12 +1264,8 @@ static QState Ihm_manual_config(Ihm * const me, QEvt const * const e) {
         case Q_ENTRY_SIG: {
             ESP_LOGD(TAG, "[CONFIG][ENTRY]");
 
-            ESP_LOGE(TAG, "size: %d", sizeof(unsigned short));
-
             Ihm_setupPageConfig();
-
-            RequestConfigEvt *confEv = Q_NEW(RequestConfigEvt, REQUEST_CONFIG_SIG);
-            QACTIVE_POST(AO_DataBroker, confEv, me);
+            Ihm_requestDataConfig();
             status_ = Q_HANDLED();
             break;
         }
@@ -1200,14 +1299,24 @@ static QState Ihm_manual_config(Ihm * const me, QEvt const * const e) {
             status_ = Q_TRAN_HIST(me->hist_manual_page);
             break;
         }
-        /*${AOs::Ihm::SM::manual_mode::manual_config::RESPONSE_CONFIG} */
-        case RESPONSE_CONFIG_SIG: {
-            ResponseConfigEvt *respEv = Q_EVT_CAST(ResponseConfigEvt);
+        /*${AOs::Ihm::SM::manual_mode::manual_config::DATA_RESPONSE} */
+        case DATA_RESPONSE_SIG: {
+            DataResponseEvt *resEv = Q_EVT_CAST(DataResponseEvt);
 
-            //POST to uart
-            postUart_setNumber(CONFIG_PRE_HEAT_NUMBER_VP, respEv->pre_heat);
-            postUart_setNumber(CONFIG_ROAST_NUMBER_VP, respEv->roast);
-            status_ = Q_HANDLED();
+            DataType type = resEv->type;
+            Data data = resEv->data;
+            /*${AOs::Ihm::SM::manual_mode::manual_config::DATA_RESPONSE::[type==DATA_PAGE&&data.page_data~} */
+            if (type == DATA_PAGE && data.page_data.page == PAGE_CONFIG) {
+                ConfigPageData page_data = data.page_data.data;
+                uint16_t max_pre_heat = page_data->max_pre_heat;
+                uint16_t max_roast = page_data->max_roast;
+
+                hidratePageConfig(max_pre_heat, max_roast);
+                status_ = Q_HANDLED();
+            }
+            else {
+                status_ = Q_UNHANDLED();
+            }
             break;
         }
         default: {
@@ -1582,7 +1691,9 @@ static QState Ihm_manual_controls(Ihm * const me, QEvt const * const e) {
         /*${AOs::Ihm::SM::manual_mode::manual_events::manual_controls} */
         case Q_ENTRY_SIG: {
             ESP_LOGD(TAG, "[MANUAL_MODE][CONTROLS}[ENTRY]");
-            Ihm_setupPageControls(me);
+
+            Ihm_setupPageControls();
+            Ihm_requestPageControls();
             status_ = Q_HANDLED();
             break;
         }
@@ -1722,6 +1833,30 @@ static QState Ihm_manual_controls(Ihm * const me, QEvt const * const e) {
 
 
             status_ = Q_HANDLED();
+            break;
+        }
+        /*${AOs::Ihm::SM::manual_mode::manual_events::manual_controls::DATA_RESPONSE} */
+        case DATA_RESPONSE_SIG: {
+            DataResponseEvt *resEv = Q_EVT_CAST(DataResponseEvt);
+
+            DataType type = resEv->type;
+            Data data = resEv->data;
+            /*${AOs::Ihm::SM::manual_mode::manual_events::manual_controls::DATA_RESPONSE::[type==DATA_PAGE&&data.page_data~} */
+            if (type == DATA_PAGE && data.page_data.page == PAGE_CONTROLS) {
+                ControlPageData page_data = data.page_data.data;
+                uint16_t sensor_grao = page_data->sensor_grao;
+                uint16_t sensor_ar = page_data->sensor_ar;
+                uint16_t potencia = page_data->potencia;
+                uint16_t cilindro = page_data->cilindro;
+                uint16_t turbina = page_data->turbina;
+                uint16_t resfriador = page_data->resfriador;
+
+                hidratePageConfig(max_pre_heat, max_roast);
+                status_ = Q_HANDLED();
+            }
+            else {
+                status_ = Q_UNHANDLED();
+            }
             break;
         }
         default: {
