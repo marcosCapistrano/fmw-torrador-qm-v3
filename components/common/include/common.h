@@ -132,6 +132,7 @@ typedef enum SubstageTypeTag {
 
 typedef enum StageTypeTag {
     IDLE,
+    SENSORING,
     PRE_HEAT,
     ROAST,
     COOL,
@@ -212,6 +213,8 @@ typedef struct RoastDataTag {
     time_t time_end;
     SensorData sensor_data;
     ControlData control_data;
+    StageType stage;
+    time_t stage_start;
     char name[9];
 } RoastData;
 
@@ -263,6 +266,12 @@ typedef struct ConfigPageDataTag {
     uint16_t max_roast;
 } ConfigPageData;
 
+typedef struct SensoringPageDataTag {
+    StageType stage;
+    time_t time_start;
+    SensorData sensor_data;
+} SensoringPageData;
+
 typedef enum DataTypeTag {
     DATA_PAGE,
 } DataType;
@@ -272,16 +281,13 @@ typedef struct PageDataTag {
     union {
         ControlPageData control_data;
         ConfigPageData config_data;
+        SensoringPageData sensoring_data;
     } data;
 } PageData;
 
 typedef union DataTag {
     PageData page_data;
 } Data;
-
-typedef struct IhmStateTag {
-    ControlState control;
-} IhmState;
 
 /*$declare${Events} vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv*/
 
@@ -562,6 +568,16 @@ typedef struct {
     DataType type;
     Data data;
 } DataResponseEvt;
+
+/*${Events::NotifyStageEvt} ................................................*/
+typedef struct {
+/* protected: */
+    QEvt super;
+
+/* public: */
+    StageType stage;
+    time_t stage_start;
+} NotifyStageEvt;
 /*$enddecl${Events} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
 
 /*$declare${AOs::Ihm_ctor} vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv*/
