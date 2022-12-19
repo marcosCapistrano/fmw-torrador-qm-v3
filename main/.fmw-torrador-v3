@@ -10,9 +10,10 @@
  </group>
  <group name="windows">
   <item id="AOs::Ihm::SM">0,0,880,781</item>
-  <item id="..::components::common::include::common.h">0,0,816,567</item>
-  <item id="AOs::Perif::SM">0,0,880,781</item>
-  <item id="AOs::DataBroker::SM">0,0,880,781,*</item>
+  <item id="..::components::common::include::common.h">0,246,816,567</item>
+  <item id="AOs::Perif::SM">0,32,880,781</item>
+  <item id="AOs::DataBroker::SM">0,0,880,781</item>
+  <item id="Components::IhmStage::SM">0,0,880,781,*</item>
  </group>
  <group name="search">
   <item name="options">2032128</item>
