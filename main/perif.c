@@ -123,7 +123,9 @@ static QState Perif_sensoring(Perif * const me, QEvt const * const e) {
         /*${AOs::Perif::SM::sensoring::SENSOR_TIMEOUT} */
         case SENSOR_TIMEOUT_SIG: {
             int temp_ar = sample_sensor_ar();
+            vTaskDelay(pdMS_TO_TICKS(100));
             int gas = sample_sensor_gas();
+            vTaskDelay(pdMS_TO_TICKS(100));
             int temp_grao = sample_sensor_grao();
 
             //ESP_LOGE(TAG, "gas here: %d", gas);
@@ -322,17 +324,17 @@ static QState Perif_off(Perif * const me, QEvt const * const e) {
 
             me->wantedCil = newCil;
             ControlDataEvt *contEv2;
-            contEv = Q_NEW(ControlDataEvt, CONTROL_DATA_SIG);
-            contEv->control = CILINDRO;
-            contEv->value = newCil;
-            QACTIVE_POST(AO_DataBroker, &contEv->super, me);
+            contEv2 = Q_NEW(ControlDataEvt, CONTROL_DATA_SIG);
+            contEv2->control = CILINDRO;
+            contEv2->value = newCil;
+            QACTIVE_POST(AO_DataBroker, &contEv2->super, me);
 
             turbina_set_duty(newTurb);
             ControlDataEvt *contEv3;
-            contEv = Q_NEW(ControlDataEvt, CONTROL_DATA_SIG);
-            contEv->control = TURBINA;
-            contEv->value = newTurb;
-            QACTIVE_POST(AO_DataBroker, &contEv->super, me);
+            contEv3 = Q_NEW(ControlDataEvt, CONTROL_DATA_SIG);
+            contEv3->control = TURBINA;
+            contEv3->value = newTurb;
+            QACTIVE_POST(AO_DataBroker, &contEv3->super, me);
 
             QTimeEvt_rearm(&me->pwmTimeEvt, PWM_CHECK_INTERVAL);
             status_ = Q_HANDLED();
@@ -471,7 +473,9 @@ static QState Perif_cooling(Perif * const me, QEvt const * const e) {
         /*${AOs::Perif::SM::cooling::SENSOR_TIMEOUT} */
         case SENSOR_TIMEOUT_SIG: {
             int temp_ar = sample_sensor_ar();
+            vTaskDelay(pdMS_TO_TICKS(100));
             int gas = sample_sensor_gas();
+            vTaskDelay(pdMS_TO_TICKS(100));
             int temp_grao = sample_sensor_grao();
 
             //ESP_LOGE(TAG, "gas here: %d", gas);
@@ -491,7 +495,7 @@ static QState Perif_cooling(Perif * const me, QEvt const * const e) {
             SensorUpdateEvt *sde_gas;
             sde_gas = Q_NEW(SensorUpdateEvt, SENSOR_UPDATE_SIG);
             sde_gas->type = SENSOR_GAS;
-            sde_gas->value = temp_grao;
+            sde_gas->value = gas;
             QACTIVE_POST(AO_DataBroker, &sde_gas->super, me);
 
             QTimeEvt_rearm(&me->sensorTimeEvt, SENSOR_INTERVAL);

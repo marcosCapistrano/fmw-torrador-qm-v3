@@ -364,10 +364,10 @@ void cilindro_set_duty(int value) {
 
     if (value > 0 && !is_cilindro_on) {
         cilindro_set_on(true);
-        ESP_LOGD(TAG, "[CILINDRO]: ON");
+        //ESP_LOGD(TAG, "[CILINDRO]: ON");
     } else if (value == 0 && is_cilindro_on) {
         cilindro_set_on(false);
-        ESP_LOGD(TAG, "[CILINDRO]: OFF");
+        //ESP_LOGD(TAG, "[CILINDRO]: OFF");
     }
 
     ledc_set_duty(LEDC_MODE, LEDC_CILINDRO_CHANNEL, duty);
@@ -397,7 +397,7 @@ float sample_sensor(spi_device_handle_t* dev) {
     int16_t res = (int16_t)SPI_SWAP_DATA_RX(data, 16);
 
     if (res & (1 << 2)) {
-        // ESP_LOGE("oi", "Sensor is not connected\n");
+        ESP_LOGE(TAG, "Sensor is not connected\n");
         return 0;
     } else {
         res >>= 3;
@@ -438,10 +438,10 @@ int sample_sensor_grao() {
 int sample_sensor_gas() {
     int adc_raw = 0;
 
-    for (int i = 0; i < 24; i++) {
+    for (int i = 0; i < 40; i++) {
         adc_raw += adc1_get_raw(ADC1_EXAMPLE_CHAN0);
     }
 
-    return adc_raw / 24;
+    return adc_raw / 40;
 }
 

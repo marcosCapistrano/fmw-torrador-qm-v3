@@ -22,7 +22,9 @@ QTimeEvt_armX(&amp;me-&gt;sensorTimeEvt, SENSOR_INTERVAL, 0U);</entry>
      <exit>ESP_LOGI(TAG, &quot;[SENSORING][EXIT]&quot;);</exit>
      <tran trig="SENSOR_TIMEOUT">
       <action>int temp_ar = sample_sensor_ar();
+vTaskDelay(pdMS_TO_TICKS(100));
 int gas = sample_sensor_gas();
+vTaskDelay(pdMS_TO_TICKS(100));
 int temp_grao = sample_sensor_grao();
 
 //ESP_LOGE(TAG, &quot;gas here: %d&quot;, gas);
@@ -166,17 +168,17 @@ QACTIVE_POST(AO_DataBroker, &amp;contEv-&gt;super, me);
 
 me-&gt;wantedCil = newCil;
 ControlDataEvt *contEv2;
-contEv = Q_NEW(ControlDataEvt, CONTROL_DATA_SIG);
-contEv-&gt;control = CILINDRO;
-contEv-&gt;value = newCil;
-QACTIVE_POST(AO_DataBroker, &amp;contEv-&gt;super, me);
+contEv2 = Q_NEW(ControlDataEvt, CONTROL_DATA_SIG);
+contEv2-&gt;control = CILINDRO;
+contEv2-&gt;value = newCil;
+QACTIVE_POST(AO_DataBroker, &amp;contEv2-&gt;super, me);
 
 turbina_set_duty(newTurb);
 ControlDataEvt *contEv3;
-contEv = Q_NEW(ControlDataEvt, CONTROL_DATA_SIG);
-contEv-&gt;control = TURBINA;
-contEv-&gt;value = newTurb;
-QACTIVE_POST(AO_DataBroker, &amp;contEv-&gt;super, me);
+contEv3 = Q_NEW(ControlDataEvt, CONTROL_DATA_SIG);
+contEv3-&gt;control = TURBINA;
+contEv3-&gt;value = newTurb;
+QACTIVE_POST(AO_DataBroker, &amp;contEv3-&gt;super, me);
 
 QTimeEvt_rearm(&amp;me-&gt;pwmTimeEvt, PWM_CHECK_INTERVAL);</entry>
      <exit>ESP_LOGI(TAG, &quot;[OFF][EXIT]&quot;);</exit>
@@ -292,7 +294,9 @@ QACTIVE_POST(AO_DataBroker, &amp;contPot-&gt;super, me);
      </tran>
      <tran trig="SENSOR_TIMEOUT">
       <action>int temp_ar = sample_sensor_ar();
+vTaskDelay(pdMS_TO_TICKS(100));
 int gas = sample_sensor_gas();
+vTaskDelay(pdMS_TO_TICKS(100));
 int temp_grao = sample_sensor_grao();
 
 //ESP_LOGE(TAG, &quot;gas here: %d&quot;, gas);
@@ -312,7 +316,7 @@ QACTIVE_POST(AO_DataBroker, &amp;sde_ar-&gt;super, me);
 SensorUpdateEvt *sde_gas;
 sde_gas = Q_NEW(SensorUpdateEvt, SENSOR_UPDATE_SIG);
 sde_gas-&gt;type = SENSOR_GAS;
-sde_gas-&gt;value = temp_grao;
+sde_gas-&gt;value = gas;
 QACTIVE_POST(AO_DataBroker, &amp;sde_gas-&gt;super, me);
 
 QTimeEvt_rearm(&amp;me-&gt;sensorTimeEvt, SENSOR_INTERVAL);</action>
@@ -4626,10 +4630,10 @@ void cilindro_set_duty(int value) {
 
     if (value &gt; 0 &amp;&amp; !is_cilindro_on) {
         cilindro_set_on(true);
-        ESP_LOGD(TAG, &quot;[CILINDRO]: ON&quot;);
+        //ESP_LOGD(TAG, &quot;[CILINDRO]: ON&quot;);
     } else if (value == 0 &amp;&amp; is_cilindro_on) {
         cilindro_set_on(false);
-        ESP_LOGD(TAG, &quot;[CILINDRO]: OFF&quot;);
+        //ESP_LOGD(TAG, &quot;[CILINDRO]: OFF&quot;);
     }
 
     ledc_set_duty(LEDC_MODE, LEDC_CILINDRO_CHANNEL, duty);
@@ -4659,7 +4663,7 @@ float sample_sensor(spi_device_handle_t* dev) {
     int16_t res = (int16_t)SPI_SWAP_DATA_RX(data, 16);
 
     if (res &amp; (1 &lt;&lt; 2)) {
-        // ESP_LOGE(&quot;oi&quot;, &quot;Sensor is not connected\n&quot;);
+        ESP_LOGE(TAG, &quot;Sensor is not connected\n&quot;);
         return 0;
     } else {
         res &gt;&gt;= 3;
@@ -4700,11 +4704,11 @@ int sample_sensor_grao() {
 int sample_sensor_gas() {
     int adc_raw = 0;
 
-    for (int i = 0; i &lt; 24; i++) {
+    for (int i = 0; i &lt; 40; i++) {
         adc_raw += adc1_get_raw(ADC1_EXAMPLE_CHAN0);
     }
 
-    return adc_raw / 24;
+    return adc_raw / 40;
 }
 </text>
   </file>
